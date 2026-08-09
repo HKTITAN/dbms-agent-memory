@@ -1,0 +1,26 @@
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+.DS_Store
+.env*.local
+.vercel
+
+# Scratch space for the measurement harness: database files, WAL segments and
+# Postgres data directories, all recreated by `npm run capture`.
+.work/
+
+# Editor state, not project state.
+.cursor/
+
+# Derived artifacts. Everything here is regenerated deterministically — the
+# corpus generator is seeded, so `npm run corpus` reproduces these byte for byte
+# — and together they are 73 MB, which is not worth versioning.
+#
+# `data/capture.json` is NOT ignored. It takes forty minutes of measurement to
+# reproduce and the site builds from it, so it is the one derived artifact that
+# belongs in the repository.
+data/embeddings.bin
+data/embeddings.idx.json
+data/corpus.json
+data/corpus.scales.json

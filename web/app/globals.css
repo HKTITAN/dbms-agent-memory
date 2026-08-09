@@ -1,0 +1,1178 @@
+@import "tailwindcss";
+
+/* ============================================================================
+   Zero Compiler Phases — design foundation. Light theme only.
+
+   Rules encoded here and where they come from:
+   - Vercel brand guidelines: monochrome canvas, typography before surfaces,
+     Geist Sans for prose / Geist Mono for identifiers, no decorative gradients,
+     honest data encodings, tabular numerals in evidence.
+   - Web interface guidelines + ui-review: visible focus, 44px touch targets,
+     no layout shift, reduced-motion path on everything that moves.
+   - animations skill: transform/opacity only, sub-300ms, exits ~25% faster than
+     enters, strong custom curves over built-in keywords, transitions (not
+     keyframes) for anything a user can reverse mid-flight.
+   ========================================================================= */
+
+@theme {
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, "SF Mono", monospace;
+}
+
+:root {
+  color-scheme: light only;
+
+  /* ---- surfaces. Warm-neutral, never pure white: #fff on a screen is a flat
+     wall, and the paper reads for 30 pages. */
+  --bg: #fcfcfb;
+  --bg-raised: #ffffff;
+  --bg-sunken: #f5f4f2;
+  --bg-inset: #efeeeb;
+  --surface: #ffffff;
+
+  /* ---- text. Never pure black; #16150f keeps the warm cast of the canvas. */
+  --text: #16150f;
+  --text-secondary: rgba(22, 21, 15, 0.70);
+  --text-tertiary: rgba(22, 21, 15, 0.62);
+  --text-faint: rgba(22, 21, 15, 0.54);
+
+  --border: rgba(22, 21, 15, 0.13);
+  --border-strong: rgba(22, 21, 15, 0.26);
+  --border-faint: rgba(22, 21, 15, 0.07);
+
+  /* ---- the single warm accent. Used only where it carries meaning, and never
+     as the sole signal — always paired with text or shape. */
+  --accent: #b45309;
+  --accent-hover: #92400e;
+  --accent-quiet: rgba(180, 83, 9, 0.09);
+  --accent-line: rgba(180, 83, 9, 0.28);
+  --accent-text: #8a4008;
+
+  /* ---- data encodings, ordered by phase. Distinguishable in greyscale by the
+     luminance ramp, so colour is never load-bearing on its own. */
+  --data-1: #a8a49a;
+  --data-2: #78736a;
+  --data-3: #47433c;
+  --data-4: #b45309;
+  --data-grid: rgba(22, 21, 15, 0.08);
+
+  /* ---- state colours. Each is paired with a glyph or word at every use site. */
+  --ok: #3f6212;
+  --ok-quiet: rgba(63, 98, 18, 0.10);
+  --bad: #9f1239;
+  --bad-quiet: rgba(159, 18, 57, 0.09);
+
+  /* ---- depth. Two layers minimum: ambient + direct, both very low opacity. */
+  --shadow-sm:
+    0 1px 1px rgba(22, 21, 15, 0.04),
+    0 1px 2px rgba(22, 21, 15, 0.05);
+  --shadow-raised:
+    0 1px 2px rgba(22, 21, 15, 0.04),
+    0 4px 12px rgba(22, 21, 15, 0.05);
+  --shadow-lifted:
+    0 1px 2px rgba(22, 21, 15, 0.05),
+    0 8px 24px rgba(22, 21, 15, 0.07);
+
+  /* ---- motion. One curve family, three speeds. Named so a reviewer can tell
+     whether a value was chosen or inherited from a snippet. */
+  --ease-out: cubic-bezier(0.32, 0.72, 0, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-soft: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+
+  --dur-hover: 130ms;
+  --dur-enter: 220ms;
+  --dur-exit: 160ms;      /* ~25% faster than enter, per the animations skill */
+  --dur-move: 260ms;
+
+  --measure: 33rem;
+  --gutter: clamp(1.25rem, 4vw, 3.5rem);
+  --rule: 1px solid var(--border);
+  --radius: 8px;
+  --radius-sm: 5px;
+}
+
+/* ---------------------------------------------------------- machine canvas
+   The audience toggle drives the theme, not the operating system. Human is the
+   light reading surface the paper was typeset for; machine is dark, because it
+   shows what a program consumes — records and streams, the register of a
+   terminal rather than a page. There is still no OS-driven dark mode: the only
+   way to reach this canvas is to ask for the machine view. */
+
+:root[data-audience="machine"] {
+  color-scheme: dark;
+
+  --bg: #0f0f0e;
+  --bg-raised: #171716;
+  --bg-sunken: #0a0a09;
+  --bg-inset: #1e1e1c;
+  --surface: #171716;
+
+  --text: rgba(245, 244, 240, 0.93);
+  --text-secondary: rgba(245, 244, 240, 0.68);
+  --text-tertiary: rgba(245, 244, 240, 0.58);
+  --text-faint: rgba(245, 244, 240, 0.46);
+
+  --border: rgba(245, 244, 240, 0.13);
+  --border-strong: rgba(245, 244, 240, 0.26);
+  --border-faint: rgba(245, 244, 240, 0.07);
+
+  --accent: #e8a33d;
+  --accent-hover: #f0b45c;
+  --accent-quiet: rgba(232, 163, 61, 0.13);
+  --accent-line: rgba(232, 163, 61, 0.32);
+  --accent-text: #f2bb6b;
+
+  --data-1: #6b675f;
+  --data-2: #949087;
+  --data-3: #c4c0b6;
+  --data-4: #e8a33d;
+  --data-grid: rgba(245, 244, 240, 0.09);
+
+  --ok: #a3d16b;
+  --ok-quiet: rgba(163, 209, 107, 0.12);
+  --bad: #f08d9e;
+  --bad-quiet: rgba(240, 141, 158, 0.12);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-raised: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 14px rgba(0, 0, 0, 0.34);
+  --shadow-lifted: 0 1px 2px rgba(0, 0, 0, 0.45), 0 10px 30px rgba(0, 0, 0, 0.45);
+}
+
+/* ---- the machine register
+   Switching audience does more than recolour. The human edition is typeset —
+   proportional type, measured column, cards with depth. The machine edition is
+   what a program gets after the chrome is stripped: monospaced, flat, headings
+   marked the way a markdown reader would mark them. Nothing is hidden and no
+   text changes; only the register does, so a reader can see how much of a page
+   is presentation and how much is content.
+
+   All of it is CSS on one attribute, so there is no second render tree to keep
+   in step and no markup that exists only for one mode. */
+
+:root[data-audience="machine"] body {
+  font-family: var(--font-mono);
+  font-size: 14.5px;
+  line-height: 1.66;
+  letter-spacing: -0.003em;
+}
+
+/* Headings carry their level, the way a plain-text reader shows structure. */
+:root[data-audience="machine"] .display::before { content: '# '; }
+:root[data-audience="machine"] .heading-24::before { content: '## '; }
+:root[data-audience="machine"] .heading-20::before { content: '### '; }
+:root[data-audience="machine"] .heading-16::before { content: '#### '; }
+:root[data-audience="machine"] .display::before,
+:root[data-audience="machine"] .heading-24::before,
+:root[data-audience="machine"] .heading-20::before,
+:root[data-audience="machine"] .heading-16::before {
+  color: var(--accent);
+  font-weight: 400;
+}
+
+:root[data-audience="machine"] .display,
+:root[data-audience="machine"] .title,
+:root[data-audience="machine"] .heading-24,
+:root[data-audience="machine"] .heading-20,
+:root[data-audience="machine"] .heading-16 {
+  font-family: var(--font-mono);
+  letter-spacing: -0.01em;
+  font-weight: 500;
+}
+:root[data-audience="machine"] .display { font-size: 1.75rem; line-height: 1.2; }
+:root[data-audience="machine"] .heading-24 { font-size: 1.125rem; }
+:root[data-audience="machine"] .heading-20 { font-size: 1rem; }
+
+/* Prose widens: a monospaced column at the typeset measure runs short. */
+:root[data-audience="machine"] .prose { max-width: 78ch; }
+:root[data-audience="machine"] .lede { font-family: var(--font-mono); font-size: 1rem; }
+
+/* Flatten the chrome. Cards, figures and code blocks lose their depth and
+   rounding and become plain rules — the shape a text extractor would leave. */
+:root[data-audience="machine"] .figure,
+:root[data-audience="machine"] .code-block,
+:root[data-audience="machine"] .btn,
+:root[data-audience="machine"] .pill {
+  box-shadow: none;
+  border-radius: 2px;
+}
+:root[data-audience="machine"] .figure,
+:root[data-audience="machine"] .figure-head,
+:root[data-audience="machine"] .code-head {
+  background: transparent;
+}
+:root[data-audience="machine"] .stat-value { font-family: var(--font-mono); font-weight: 500; }
+
+/* Emphasis reads as markdown emphasis rather than as typography. */
+:root[data-audience="machine"] .body em::before,
+:root[data-audience="machine"] .body em::after { content: '_'; color: var(--text-faint); }
+:root[data-audience="machine"] .body strong::before,
+:root[data-audience="machine"] .body strong::after { content: '**'; color: var(--text-faint); }
+:root[data-audience="machine"] .body strong { font-weight: 600; }
+
+/* List items get their bullet as a character, not a marker glyph. */
+:root[data-audience="machine"] .body ul { list-style: none; padding-left: 1.2rem; }
+:root[data-audience="machine"] .body ul > li::before {
+  content: '- '; color: var(--accent); margin-left: -1.2rem;
+}
+
+/* Syntax colours have to be re-tuned, not inverted: the light set is too dark to
+   read on this canvas. */
+:root[data-audience="machine"] .tok-kw   { color: #c9a6f5; }
+:root[data-audience="machine"] .tok-fn   { color: #f0b483; }
+:root[data-audience="machine"] .tok-type { color: #9ed4a4; }
+:root[data-audience="machine"] .tok-str  { color: #7fc9df; }
+:root[data-audience="machine"] .tok-num  { color: #e9b08a; }
+
+/* The canvas itself crossfades. Only background and colour transition — a whole
+   -page transition on every property would repaint the world on each switch. */
+html, body {
+  transition:
+    background-color var(--dur-move) var(--ease-soft),
+    color var(--dur-move) var(--ease-soft);
+}
+
+* { box-sizing: border-box; }
+
+html {
+  -webkit-text-size-adjust: 100%;
+  scroll-behavior: smooth;
+}
+
+/* ------------------------------------------------------------- scrollbars
+   Thin, unpainted until the surface is hovered, and drawn from the same border
+   token as everything else. Firefox gets the standard properties; WebKit gets
+   the pseudo-elements. Both inherit the theme, so the machine canvas does not
+   keep light scrollbars. */
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-corner { background: transparent; }
+
+::-webkit-scrollbar-thumb {
+  background-color: var(--border);
+  border-radius: 999px;
+  /* Transparent border with background-clip is the only way to inset a WebKit
+     thumb, so the bar reads as 6px of ink inside a 10px gutter. */
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  ::-webkit-scrollbar-thumb:hover { background-color: var(--border-strong); }
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 1.6;
+  font-feature-settings: "kern", "liga", "calt";
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection { background: var(--accent-quiet); color: var(--text); }
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+/* Every animation gets a reduced-motion path. No exceptions, including fades. */
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* --------------------------------------------------------------- structure */
+
+.shell { max-width: 1240px; margin: 0 auto; padding-inline: var(--gutter); }
+
+/* Overlays — the file-reference preview, the download flyout — are absolutely
+   positioned against inline anchors. Near the right edge of a narrow viewport
+   they extend past it, and an absolutely-positioned box still contributes to
+   scrollable overflow even at opacity 0. That is 190px of sideways scroll on a
+   tablet, from an element the reader cannot see.
+
+   `overflow-x: clip` is the fix rather than `hidden`: clip stops the overflow
+   contributing without turning the article into a scroll container, so the
+   sticky rail beside it keeps working and anchor jumps still land. */
+main { overflow-x: clip; }
+
+/* A clip container establishes a containing block for nothing, but it does clip
+   its own descendants — so an overlay that would have run off the page is
+   trimmed at the article edge instead of dragging the viewport with it. */
+
+.masthead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  padding-block: 1.125rem;
+  border-bottom: var(--rule);
+}
+
+.section {
+  padding-block: clamp(2.75rem, 6vw, 4.5rem);
+  border-top: var(--rule);
+  scroll-margin-top: 5rem;
+}
+.section:first-of-type { border-top: none; }
+
+.prose { max-width: var(--measure); }
+
+/* ------------------------------------------------------------ reading rail
+   A narrow sticky aside beside a wide article. Below 1080px the rail has no
+   room to sit alongside the text, so it becomes a normal block at the top and
+   the contents collapse into a details element. */
+
+.with-rail {
+  display: grid;
+  /* minmax(0, …) on both tracks: without it a long word in the rail or a wide
+     table in the article can force the grid wider than its container, which is
+     how a page starts scrolling sideways. */
+  grid-template-columns: minmax(0, 216px) minmax(0, 1fr);
+  gap: clamp(1.5rem, 3.5vw, 3rem);
+  align-items: start;
+}
+
+/* The rail is a column with a fixed height budget: the contents list takes what
+   is left after the downloads, and only the list scrolls. Scrolling the whole
+   rail would push the downloads off-screen on a short viewport, which is exactly
+   when a reader is most likely to want them. */
+.reading-rail {
+  position: sticky;
+  top: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  max-height: calc(100vh - 3rem);
+  min-width: 0;
+  padding-bottom: 0.25rem;
+}
+
+.reading-rail nav {
+  min-height: 0;          /* lets the flex child actually shrink */
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  /* Leave room for the scrollbar so the thumb never sits on the text. */
+  padding-right: 0.25rem;
+}
+
+.reading-rail > div {
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
+.rail-link {
+  display: block;
+  padding: 0.3125rem 0 0.3125rem 0.625rem;
+  margin-left: -1px;
+  font-size: 0.8125rem;
+  line-height: 1.35;
+  color: var(--text-tertiary);
+  text-decoration: none;
+  border-left: 2px solid var(--border-faint);
+  transition:
+    color var(--dur-hover) var(--ease-soft),
+    border-color var(--dur-hover) var(--ease-soft);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .rail-link:hover { color: var(--text); border-left-color: var(--border-strong); }
+}
+
+.rail-link[data-current="true"] {
+  color: var(--text);
+  font-weight: 540;
+  border-left-color: var(--accent);
+}
+
+/* The download hover preview. `display` lives here rather than in the component's
+   inline style so the narrow-screen rule below can remove it from layout — an
+   inline display would win against any selector. */
+.rail-preview { display: block; }
+
+/* The menu button only exists on the narrow layout. On the wide one the
+   contents are already open beside the reader. */
+.rail-toggle { display: none; }
+
+@media (max-width: 1080px) {
+  .with-rail { grid-template-columns: minmax(0, 1fr); }
+
+  /* The rail becomes a bar. It stays sticky so the contents stay reachable from
+     anywhere in a long paper, but it now costs one row instead of a screenful. */
+  .reading-rail {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    max-height: none;
+    overflow: visible;
+    gap: 0.5rem;
+    padding-block: 0.5rem;
+    padding-bottom: 0.625rem;
+    border-bottom: var(--rule);
+    /* Opaque: the article scrolls underneath it. */
+    background: var(--bg);
+  }
+
+  .rail-toggle { display: inline-flex; width: 100%; justify-content: flex-start; }
+
+  /* The contents collapse behind the button.
+
+     Height is NOT animated. The `grid-template-rows: 0fr → 1fr` trick does not
+     resolve in an auto-height container here — `1fr` computes to 0px — and the
+     alternatives all animate a layout property, which the motion rules exclude.
+     So the panel takes its space instantly and only its appearance is animated,
+     with opacity and a small translate. That is the honest version: the layout
+     move is immediate, and nothing pretends to be a compositor animation. */
+  .reading-rail nav {
+    display: none;
+    padding-right: 0;
+  }
+
+  .reading-rail[data-menu-open="true"] nav {
+    display: block;
+    animation: railOpen var(--dur-enter) var(--ease-out) both;
+  }
+
+  @keyframes railOpen {
+    from { opacity: 0; transform: translateY(-4px); }
+    to   { opacity: 1; transform: none; }
+  }
+
+  /* Its own heading is redundant once the button says "Contents". */
+  .rail-heading { display: none; }
+
+  /* The list scrolls inside the bar rather than growing past the viewport. */
+  .reading-rail[data-menu-open="true"] nav ol {
+    max-height: min(58vh, 420px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  /* On a narrow screen the rail sits above the paper, so the download row reads
+     better horizontally than as a stack.
+
+     auto-fit rather than `grid-auto-flow: column`: these buttons are .btn, which
+     is white-space: nowrap, so an equal-columns row has a min-content floor equal
+     to the sum of all three labels — about 361px, which does not fit the 335px
+     content box of a 375px screen and pushed the whole page sideways. auto-fit
+     drops to two columns and wraps the third instead. */
+  .reading-rail > div:last-of-type,
+  .reading-rail > div:nth-last-of-type(2) {
+    grid-auto-flow: row;
+    grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  }
+  /* The download flyout is anchored at left: 100% + 10px, which sits over the
+     article only while the rail is a 208px column. Once the rail is full width
+     that is past the right edge of the viewport, and a transparent element still
+     contributes scrollable overflow — so leaving it laid out gave the body ~180px
+     of horizontal scroll. Hover does not exist on this layout, so remove it. */
+  .rail-preview { display: none; }
+}
+
+.split {
+  display: grid;
+  grid-template-columns: minmax(0, 7fr) minmax(0, 4fr);
+  gap: clamp(1.5rem, 4vw, 3.5rem);
+  align-items: start;
+}
+
+.grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: clamp(1rem, 2.5vw, 2rem);
+}
+
+/* -------------------------------------------------------------- typography */
+
+.display {
+  font-size: clamp(2.5rem, 6.5vw, 4.25rem);
+  line-height: 1.02;
+  letter-spacing: -0.035em;
+  font-weight: 560;
+  margin: 0;
+  text-wrap: balance;
+}
+
+.title {
+  font-size: clamp(1.75rem, 3.5vw, 2.5rem);
+  line-height: 1.12;
+  letter-spacing: -0.025em;
+  font-weight: 540;
+  margin: 0;
+  text-wrap: balance;
+}
+
+.heading-24 {
+  font-size: 1.5rem; line-height: 1.24; letter-spacing: -0.019em;
+  font-weight: 540; margin: 0 0 0.875rem; text-wrap: balance;
+}
+.heading-20 {
+  font-size: 1.1875rem; line-height: 1.32; letter-spacing: -0.014em;
+  font-weight: 540; margin: 0 0 0.625rem; text-wrap: balance;
+}
+.heading-16 {
+  font-size: 1rem; line-height: 1.42; letter-spacing: -0.008em;
+  font-weight: 560; margin: 0 0 0.5rem;
+}
+
+.lede {
+  font-size: clamp(1.0625rem, 1.7vw, 1.25rem);
+  line-height: 1.56; letter-spacing: -0.012em;
+  color: var(--text-secondary); text-wrap: pretty; margin: 0;
+}
+
+.body { text-wrap: pretty; }
+.body p { margin: 0 0 1.0625rem; }
+.body p:last-child { margin-bottom: 0; }
+
+.label {
+  font-size: 0.8125rem; line-height: 1.4; font-weight: 500;
+  color: var(--text-secondary);
+}
+.caption {
+  font-size: 0.8125rem; line-height: 1.5; color: var(--text-tertiary);
+  text-wrap: pretty; margin: 0.625rem 0 0;
+}
+.meta {
+  font-family: var(--font-mono); font-size: 0.75rem; line-height: 1.4;
+  color: var(--text-tertiary); font-variant-numeric: tabular-nums;
+}
+
+.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.num { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+
+a { color: inherit; text-underline-offset: 0.18em; text-decoration-thickness: 1px; }
+@media (hover: hover) and (pointer: fine) {
+  a { transition: text-decoration-color var(--dur-hover) var(--ease-soft); }
+  a:hover { text-decoration-color: var(--accent); }
+}
+
+/* ---------------------------------------------------------------- evidence */
+
+.stat-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  border-block: var(--rule);
+}
+.stat { padding: 1.125rem 1.25rem 1.25rem; border-left: 1px solid var(--border-faint); }
+.stat:first-child { border-left: none; }
+
+.stat-value {
+  font-size: clamp(1.5rem, 2.6vw, 2rem); line-height: 1.05;
+  letter-spacing: -0.028em; font-weight: 540;
+  font-variant-numeric: tabular-nums; display: block;
+}
+.stat-unit {
+  font-size: 0.6875em; color: var(--text-tertiary);
+  letter-spacing: -0.01em; margin-left: 0.15em; font-weight: 460;
+}
+.stat-label {
+  font-size: 0.75rem; color: var(--text-tertiary);
+  margin-top: 0.4375rem; display: block; line-height: 1.35;
+}
+
+.table-wrap {
+  overflow-x: auto;
+  border-block: var(--rule);
+  overscroll-behavior-x: contain;
+}
+
+table {
+  width: 100%; border-collapse: collapse;
+  font-size: 0.8438rem; font-variant-numeric: tabular-nums;
+}
+caption {
+  caption-side: top; text-align: left; font-size: 0.8125rem;
+  color: var(--text-tertiary); padding-block: 0.75rem; text-wrap: pretty;
+}
+th, td {
+  padding: 0.5625rem 0.875rem; text-align: left;
+  vertical-align: baseline; white-space: nowrap;
+}
+th {
+  font-weight: 540; color: var(--text-secondary);
+  border-bottom: 1px solid var(--border-strong);
+  position: sticky; top: 0; background: var(--bg);
+}
+tbody tr { border-bottom: 1px solid var(--border-faint); }
+tbody tr:last-child { border-bottom: none; }
+tfoot td { border-top: 1px solid var(--border-strong); font-weight: 540; }
+th.n, td.n { text-align: right; }
+td.wrap, th.wrap { white-space: normal; }
+
+figure { margin: 0; }
+
+.figure {
+  border: var(--rule); border-radius: var(--radius);
+  background: var(--bg-raised); overflow: hidden;
+  box-shadow: var(--shadow-sm);
+}
+.figure-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 1rem; padding: 0.75rem 1rem; border-bottom: var(--rule);
+  background: var(--bg-sunken);
+}
+.figure-body { padding: 1.25rem 1rem; }
+
+/* A figure's footer carries the notation key or the caveat — the thing a reader
+   needs in order to read the figure correctly, as opposed to the caption below
+   it, which says what the figure means. */
+.figure-foot {
+  padding: 0.625rem 1rem; border-top: var(--rule);
+  background: var(--bg-sunken); font-size: 0.75rem;
+  line-height: 1.55; color: var(--text-tertiary);
+}
+
+/* Two- or three-way view switch inside a figure head. Small, quiet, and it
+   never moves the figure body's height when it changes. */
+.seg {
+  display: inline-flex; gap: 1px; padding: 2px;
+  background: var(--bg-inset); border: 1px solid var(--border-faint);
+  border-radius: var(--radius-sm);
+}
+.seg button {
+  font: inherit; font-size: 0.6875rem; font-family: var(--font-mono);
+  letter-spacing: 0.02em; color: var(--text-tertiary);
+  background: transparent; border: none; border-radius: 3px;
+  padding: 0.25rem 0.5rem; min-height: 26px; cursor: pointer;
+  transition: color var(--dur-hover) var(--ease-soft),
+              background-color var(--dur-hover) var(--ease-soft);
+}
+.seg button:hover { color: var(--text); }
+.seg button.seg-on {
+  background: var(--bg-raised); color: var(--text);
+  box-shadow: var(--shadow-sm);
+}
+
+/* ------------------------------------------------------------------- code */
+
+pre, code, kbd, samp { font-family: var(--font-mono); }
+
+pre {
+  margin: 0; overflow-x: auto; font-size: 0.8125rem;
+  line-height: 1.62; tab-size: 4; overscroll-behavior-x: contain;
+}
+
+.code-block {
+  border: var(--rule); border-radius: var(--radius);
+  background: var(--bg-sunken); overflow: hidden;
+}
+.code-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 1rem; padding: 0.5rem 0.875rem; border-bottom: var(--rule);
+  font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-tertiary);
+}
+.code-block pre { padding: 0.9375rem 1rem; }
+
+code:not(pre code) {
+  font-size: 0.875em; padding: 0.1em 0.34em; border-radius: 3px;
+  background: var(--bg-sunken); border: 1px solid var(--border-faint);
+  /* Never nowrap: a long inline command would push the page wider than a phone. */
+  white-space: pre-wrap; overflow-wrap: anywhere;
+}
+
+.tok-kw   { color: #6b21a8; font-weight: 540; }
+.tok-fn   { color: #9a3412; }
+.tok-type { color: #1e4620; }
+.tok-str  { color: #0e5a6e; }
+.tok-num  { color: #7c2d12; }
+.tok-com  { color: var(--text-faint); font-style: italic; }
+.tok-punc { color: var(--text-tertiary); }
+
+/* ------------------------------------------------------------------ chrome */
+
+.rule { border: none; border-top: var(--rule); margin: 0; }
+
+.pill {
+  display: inline-flex; align-items: center; gap: 0.375rem;
+  font-size: 0.75rem; font-family: var(--font-mono);
+  padding: 0.1875rem 0.5rem; border: 1px solid var(--border);
+  border-radius: 4px; color: var(--text-secondary);
+  white-space: nowrap; background: var(--bg-raised);
+}
+.pill-accent {
+  border-color: var(--accent-line); background: var(--accent-quiet);
+  color: var(--accent-text);
+}
+.pill-ok  { border-color: rgba(63,98,18,0.28);  background: var(--ok-quiet);  color: var(--ok); }
+.pill-bad { border-color: rgba(159,18,57,0.28); background: var(--bad-quiet); color: var(--bad); }
+
+/* Buttons. Press feedback is a transition so releasing mid-press returns
+   smoothly; scale never goes below 0.96. */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.4375rem;
+  min-height: 40px; padding: 0.5rem 0.875rem;
+  font: inherit; font-size: 0.875rem; font-weight: 500;
+  color: var(--text); background: var(--bg-raised);
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  cursor: pointer; white-space: nowrap;
+  box-shadow: var(--shadow-sm);
+  transition:
+    background-color var(--dur-hover) var(--ease-soft),
+    border-color var(--dur-hover) var(--ease-soft),
+    box-shadow var(--dur-hover) var(--ease-soft),
+    scale var(--dur-hover) var(--ease-out);
+}
+@media (hover: hover) and (pointer: fine) {
+  .btn:hover { background: var(--bg-sunken); border-color: var(--border-strong); }
+}
+.btn:active { scale: 0.97; }
+.btn[aria-pressed="true"], .btn[data-selected="true"] {
+  background: var(--text); color: var(--bg-raised); border-color: var(--text);
+}
+.btn-accent {
+  background: var(--accent); color: #fff; border-color: var(--accent);
+}
+@media (hover: hover) and (pointer: fine) {
+  .btn-accent:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+}
+
+/* Segmented control — the human/machine switch. The thumb is a single moving
+   element rather than two crossfading backgrounds, so the motion reads as one
+   object sliding rather than two things blinking. */
+.segmented {
+  position: relative; display: inline-flex; align-items: center;
+  padding: 3px; gap: 2px;
+  background: var(--bg-inset); border: 1px solid var(--border);
+  border-radius: 999px;
+}
+.segmented-thumb {
+  position: absolute; top: 3px; bottom: 3px; left: 3px;
+  border-radius: 999px; background: var(--bg-raised);
+  box-shadow: var(--shadow-sm);
+  transition: transform var(--dur-move) var(--ease-out), width var(--dur-move) var(--ease-out);
+  pointer-events: none;
+}
+.segmented button {
+  position: relative; z-index: 1;
+  display: inline-flex; align-items: center; gap: 0.4375rem;
+  min-height: 34px; padding: 0 0.875rem;
+  font: inherit; font-size: 0.75rem; font-weight: 560;
+  letter-spacing: 0.04em; text-transform: uppercase;
+  font-family: var(--font-mono);
+  color: var(--text-tertiary); background: none; border: 0;
+  border-radius: 999px; cursor: pointer; white-space: nowrap;
+  transition: color var(--dur-hover) var(--ease-soft);
+}
+.segmented button[aria-pressed="true"] { color: var(--text); }
+
+/* ------------------------------------------------------------ floating audio
+   The narration player follows the reader instead of living at the top of the
+   article, so it can be started or paused from anywhere in a long paper. It is
+   collapsed to a pill until opened, because a persistent 90px panel over the
+   text would cost more than it gives. */
+
+.audio-dock {
+  position: fixed;
+  right: clamp(0.75rem, 2vw, 1.5rem);
+  bottom: clamp(0.75rem, 2vw, 1.5rem);
+  z-index: 60;
+  width: min(360px, calc(100vw - 1.5rem));
+  display: grid;
+  gap: 0.5rem;
+  justify-items: end;
+  max-height: calc(100vh - 2rem);
+}
+
+.audio-panel {
+  width: 100%;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lifted);
+  overflow: hidden;
+  /* Scales out of the button that opened it, not out of its own centre. */
+  transform-origin: bottom right;
+  transition:
+    opacity var(--dur-enter) var(--ease-out),
+    transform var(--dur-enter) var(--ease-out);
+}
+
+.audio-panel[data-open="false"] {
+  opacity: 0;
+  transform: translateY(6px) scale(0.97);
+  pointer-events: none;
+  position: absolute;
+  bottom: 3rem;
+  right: 0;
+  transition:
+    opacity var(--dur-exit) var(--ease-soft),
+    transform var(--dur-exit) var(--ease-soft);
+}
+
+@media (max-width: 720px) {
+  .audio-dock { left: clamp(0.75rem, 2vw, 1.5rem); width: auto; }
+}
+
+/* A numbered citation marker. Superscript, tight against the word it follows,
+   and never a line-height contributor — a raised number that grows the line box
+   makes every paragraph containing a citation taller than its neighbours. */
+.cite {
+  font-size: 0.68em;
+  vertical-align: super;
+  line-height: 0;
+  margin-left: 0.12em;
+  text-decoration: none;
+  color: var(--accent-text);
+  font-variant-numeric: tabular-nums;
+  font-family: var(--font-mono);
+}
+@media (hover: hover) and (pointer: fine) {
+  .cite:hover { text-decoration: underline; }
+}
+/* The reference an anchor jumps to gets a moment of emphasis, so the reader
+   lands on the right row rather than the right neighbourhood. */
+:target { scroll-margin-top: 6rem; }
+li:target { background: var(--accent-quiet); border-radius: 3px; }
+
+/* ------------------------------------------------------------ file references
+   An inline reference to a file in the corpus, and the preview it opens. The
+   button is styled to sit inside a sentence — no block box, no button chrome —
+   while still being a real button for keyboard and assistive technology. */
+
+.file-ref-wrap { position: relative; display: inline; }
+
+.file-ref {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font: inherit;
+  font-size: 0.875em;
+  padding: 0.05em 0.3em;
+  margin-inline: -0.05em;
+  color: var(--accent-text);
+  background: var(--accent-quiet);
+  border: 1px solid var(--accent-line);
+  border-radius: 3px;
+  cursor: pointer;
+  vertical-align: baseline;
+  transition:
+    background-color var(--dur-hover) var(--ease-soft),
+    border-color var(--dur-hover) var(--ease-soft);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .file-ref:hover { background: var(--accent-line); border-color: var(--accent); }
+}
+
+.file-ref-card {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 8px);
+  z-index: 50;
+  width: min(430px, 78vw);
+  display: block;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(-4px) scale(0.985);
+  /* Grows out of the reference it belongs to, not its own centre. */
+  transform-origin: top left;
+  transition:
+    opacity var(--dur-exit) var(--ease-soft),
+    transform var(--dur-exit) var(--ease-soft);
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lifted);
+  overflow: hidden;
+  text-align: left;
+}
+
+/* Hover and keyboard focus both open it. The delay lives in transition-delay so
+   a pointer crossing the line on its way elsewhere never flashes the card;
+   leaving has no delay, because a panel left over the text is worse than one
+   that arrives late. */
+.file-ref-wrap:hover .file-ref-card,
+.file-ref-wrap:focus-within .file-ref-card {
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity var(--dur-enter) var(--ease-out) 160ms,
+    transform var(--dur-enter) var(--ease-out) 160ms;
+}
+
+/* Opens upward when there is no room below. */
+.file-ref-wrap[data-flip="true"] .file-ref-card {
+  top: auto;
+  bottom: calc(100% + 8px);
+  transform-origin: bottom left;
+}
+
+.file-ref-head,
+.file-ref-foot {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.4375rem 0.625rem;
+  font-size: 0.75rem;
+  background: var(--bg-sunken);
+}
+.file-ref-head { border-bottom: 1px solid var(--border-faint); }
+.file-ref-foot { border-top: 1px solid var(--border-faint); }
+
+.file-ref-body { display: block; max-height: 220px; overflow: hidden; }
+
+/* Does the job <pre> would do, from an element that is legal inside a <p>.
+   The preview is an excerpt, so long lines are clipped rather than wrapped —
+   the shape of the code survives, and the card keeps a predictable width. */
+.file-ref-code {
+  display: block;
+  padding: 0.625rem 0.75rem;
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  line-height: 1.55;
+  white-space: pre;
+  overflow: hidden;
+  /* Reset the inline-code chrome inherited from `code:not(pre code)`. */
+  background: none;
+  border: 0;
+  border-radius: 0;
+}
+
+/* On paper a reference is just its name, and a hover card cannot exist. */
+@media print {
+  .file-ref {
+    background: none; border: 0; padding: 0; color: inherit;
+    font-family: var(--font-mono);
+  }
+  .file-ref-card { display: none !important; }
+}
+
+/* Touch has no hover: the card would need a tap to open and a tap to dismiss,
+   which competes with the tap that opens the file. Tapping just opens it. */
+@media (hover: none) {
+  .file-ref-card { display: none; }
+}
+
+.skip-link {
+  position: absolute; left: -9999px; top: 0;
+  padding: 0.625rem 1rem; background: var(--bg-raised);
+  border: 1px solid var(--border-strong); border-radius: var(--radius-sm); z-index: 100;
+}
+.skip-link:focus { left: 1rem; top: 1rem; }
+
+.footer {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 1.5rem; padding-block: 1.75rem 2.5rem; border-top: var(--rule);
+  color: var(--text-tertiary); font-size: 0.8125rem; flex-wrap: wrap;
+}
+
+/* ---------------------------------------------------------------- motion */
+
+/* Enter transitions for panels that swap on user action. Never from scale(0);
+   always a visible shape. Reversible, so a transition rather than a keyframe. */
+.swap-enter {
+  animation: swapIn var(--dur-enter) var(--ease-out) both;
+}
+@keyframes swapIn {
+  from { opacity: 0; transform: translateY(4px) scale(0.994); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* ---- the audience switch
+   Changing register re-typesets the whole article: the measure changes, the
+   face changes, every heading gains a prefix. Letting that happen instantly
+   reads as a glitch, and transitioning it property-by-property would animate
+   layout on every element at once.
+
+   Instead the article settles once — a short blur-and-lift over the reflow,
+   which is the same move parallel.ai uses between its two output modes. The
+   class is applied for exactly one animation and then removed, so nothing is
+   left in a transitioning state and a second switch mid-flight simply restarts
+   it. `will-change` is scoped to the animation for the same reason. */
+.audience-settle {
+  animation: audienceSettle 320ms var(--ease-out) both;
+  will-change: opacity, transform, filter;
+}
+
+@keyframes audienceSettle {
+  from { opacity: 0; transform: translateY(6px); filter: blur(3px); }
+  60%  { opacity: 1; }
+  to   { opacity: 1; transform: none; filter: blur(0); }
+}
+
+/* Reduced motion still needs the reflow acknowledged, but not moved: a plain
+   opacity settle, no travel and no blur. */
+@media (prefers-reduced-motion: reduce) {
+  .audience-settle { animation: none; }
+}
+
+/* ---------------------------------------------------------- breakpoints */
+
+@media (max-width: 1024px) {
+  .split { grid-template-columns: minmax(0, 1fr); gap: 2rem; }
+}
+
+@media (max-width: 720px) {
+  .grid-2 { grid-template-columns: minmax(0, 1fr); }
+  body { font-size: 15.5px; }
+  .section { padding-block: 2.25rem; }
+  .stat-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .stat { padding: 0.875rem 0.9375rem 1rem; }
+  th, td { padding: 0.5rem 0.625rem; }
+  .masthead { flex-wrap: wrap; gap: 0.375rem; padding-block: 0.875rem; }
+  .footer { flex-direction: column; align-items: flex-start; gap: 0.5rem; }
+  .figure-head { flex-wrap: wrap; gap: 0.25rem; }
+  .code-block pre { padding: 0.75rem 0.8125rem; }
+  input, select, textarea, button { font-size: max(16px, 1em); }
+
+  /* The touch floor, enforced on every control rather than only on `.btn`.
+     Components author their own selector chips with inline padding, and a 32px
+     chip is a target people miss — so the floor is applied here, once, where it
+     cannot be forgotten. `align-items: center` keeps the label optically centred
+     once the box grows past its text.
+
+     Components set their own `minHeight` inline, and an inline style beats a
+     stylesheet rule — so the floor has to be `!important` to reach them. That is
+     the justified use of it: an accessibility minimum overriding a smaller value
+     chosen by a component, in one place, at one breakpoint. */
+  main button,
+  main select,
+  main summary,
+  main [role="button"],
+  .btn {
+    min-height: 44px !important;
+  }
+  main button { align-items: center; }
+
+  /* Inline references sit inside sentences; giving them a 44px box would break
+     the line. They are excluded, and each has a full-size counterpart in §7. */
+  main button.file-ref { min-height: 0 !important; }
+}
+
+@media (max-width: 400px) {
+  .stat-strip { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* -------------------------------------------------------------------- print
+   The paper is an academic submission before it is a web page. */
+
+@media print {
+  :root {
+    --bg: #fff; --bg-raised: #fff; --bg-sunken: #fafafa; --bg-inset: #f4f4f4;
+    --text: #000; --text-secondary: #333; --text-tertiary: #555; --text-faint: #777;
+    --border: #ccc; --border-strong: #999; --border-faint: #e3e3e3;
+    --accent: #000; --accent-text: #000; --accent-quiet: #f0f0f0; --accent-line: #999;
+    --data-1: #aaa; --data-2: #777; --data-3: #333; --data-4: #000;
+    --data-grid: #ddd;
+    --ok: #000; --bad: #000; --ok-quiet: #f2f2f2; --bad-quiet: #f2f2f2;
+    --shadow-sm: none; --shadow-raised: none; --shadow-lifted: none;
+  }
+
+  @page { margin: 16mm 15mm; }
+
+  /* A review paper, set at review-paper density. 9.4pt on a 178mm measure is
+     ~92 characters per line — dense but within the range journals set at, and
+     it is what keeps this at a submittable length rather than a 45-page dump. */
+  body { font-size: 8.9pt; line-height: 1.38; background: #fff; }
+  .shell { max-width: none; padding: 0; }
+  .section { padding-block: 0.6rem; }
+  .prose { max-width: none; }
+
+  .no-print, nav.toc, .skip-link { display: none !important; }
+  .print-only { display: revert !important; }
+
+  /* The printed edition is a review paper, not a transcript of the site. The
+     material that exists to be *operated* — the playground, the phase explorer,
+     the eight programs in full, the stepped explainers — is omitted and replaced
+     by a pointer, because on paper it is inert and it triples the page count.
+     Everything that carries an argument or a measurement stays. */
+  .print-omit { display: none !important; }
+
+  .tok-kw, .tok-fn, .tok-type, .tok-str, .tok-num { color: #000; }
+  .tok-com { color: #666; }
+
+  h1, h2, h3, .display, .title, .heading-24, .heading-20, .heading-16 {
+    break-after: avoid-page; break-inside: avoid;
+  }
+  figure, .figure, .code-block, .stat-strip { break-inside: avoid; }
+  thead { display: table-header-group; }
+  tr { break-inside: avoid; }
+  pre { white-space: pre-wrap; word-break: break-word; }
+
+  /* ---- diagrams in print
+     A diagram is only readable whole. Small ones are kept intact; the tall
+     stacked ones cannot fit a page, so they are allowed to break — but only
+     BETWEEN their nodes, never through one. `.dia` marks a whole figure,
+     `.dia-node` marks an atom that must never be split. */
+  .dia { break-inside: avoid; page-break-inside: avoid; }
+  .dia-tall { break-inside: auto; }
+  .dia-node,
+  .dia li,
+  .dia figure,
+  .dia table { break-inside: avoid; page-break-inside: avoid; }
+
+  /* CSS grid paginates poorly: a spanning row can be sliced mid-cell. In print,
+     grids inside diagrams fall back to normal flow, which breaks predictably.
+     The two-track compile-path figure keeps its columns, because the comparison
+     is the figure — it is marked .dia-keep-grid. */
+  .dia:not(.dia-keep-grid) [style*="display: grid"],
+  .dia:not(.dia-keep-grid) [style*="display:grid"] {
+    display: block !important;
+  }
+
+  /* Tables are evidence and are frequently taller than a page. Let them break
+     between rows and repeat their header rather than being pushed whole. */
+  table { break-inside: auto; }
+  .table-wrap { overflow: visible !important; break-inside: auto; }
+
+  /* On screen a wide table scrolls inside its container. Paper has no scroll:
+     revealing the overflow without also letting cells wrap simply pushes the
+     right-hand columns off the sheet. Cells must wrap, and the type steps down
+     so a matrix with nine columns still fits the measure. */
+  th, td {
+    white-space: normal !important;
+    overflow-wrap: break-word;
+    word-break: normal;
+    padding: 0.3125rem 0.4375rem;
+  }
+  table { font-size: 6.5pt; table-layout: auto; width: 100%; max-width: 100%; }
+  pre { font-size: 6.8pt; line-height: 1.36; }
+  .figure-body { padding: 0.6rem 0.7rem; }
+  .body p { margin-bottom: 0.45rem; }
+  .heading-24 { margin-bottom: 0.4rem; }
+  .stat { padding: 0.55rem 0.7rem; }
+  caption { font-size: 7.6pt; }
+
+  /* Same problem for any flex/grid row of chips that would otherwise run wide. */
+  .dia [style*="flex"], .stat-strip { max-width: 100%; }
+
+  /* Belt and braces: nothing may exceed the printable width. */
+  .shell, main, section, .figure, .code-block, .table-wrap, figure {
+    max-width: 100% !important;
+  }
+
+  /* Nothing scrolls on paper: reveal content that is scroll-clipped on screen. */
+  [style*="overflow: auto"], [style*="overflow:auto"],
+  [style*="overflowY"], [style*="overflow-y: auto"] {
+    overflow: visible !important;
+    max-height: none !important;
+  }
+
+  /* Charts and diagrams sized with a scroll floor must shrink to the page. */
+  svg { max-width: 100% !important; min-width: 0 !important; height: auto !important; }
+
+  a { text-decoration: none; }
+  .body a[href^="http"]::after {
+    content: " (" attr(href) ")";
+    font-size: 0.82em; color: #555; word-break: break-all;
+  }
+}
+
+.print-only { display: none; }

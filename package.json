@@ -1,0 +1,29 @@
+{
+  "name": "dbms-agent-memory",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Review paper on persistent memory architecture in agents, with evidence measured against PostgreSQL 18.3, SQLite 3.53 and a file-store baseline",
+  "scripts": {
+    "corpus": "node tools/corpus.mjs",
+    "embed": "node tools/embed.mjs",
+    "capture": "node tools/capture.mjs",
+    "qr": "node tools/qr.mjs https://dbms-memory.khe.money",
+    "pdf": "node tools/pdf.mjs",
+    "epub": "node tools/epub.mjs",
+    "previews": "node tools/previews.mjs",
+    "assets": "node tools/assets.mjs",
+    "paper": "npm run corpus && npm run embed && npm run capture && npm run qr && npm --prefix web run build && npm run pdf && npm run epub && npm run previews && npm run assets && npm --prefix web run build"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.4",
+    "@electric-sql/pglite-pgvector": "^0.0.5",
+    "@huggingface/transformers": "^4.2.0",
+    "jszip": "^3.10.1",
+    "puppeteer": "^24.10.2",
+    "qrcode": "^1.5.4"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}
