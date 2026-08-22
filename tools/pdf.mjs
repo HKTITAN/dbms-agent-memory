@@ -149,41 +149,30 @@ try {
     printBackground: true,
     preferCSSPageSize: true, // honour the @page rule in globals.css
     displayHeaderFooter: true,
-    // Running head and folio only. Anything more competes with the content for
-    // attention on every one of thirty pages.
-    /* Running head and folio.
-       Puppeteer renders these outside the page box with their own tiny default
-       stylesheet, so every value has to be stated: it does not inherit the
-       document's fonts, sizes or colours.
-
-       The head is set in small caps at 7pt with wide tracking and sits on a
-       hairline, which is what distinguishes a running head from a line of body
-       text that happens to be at the top of the page. The folio is centred
-       under a matching hairline. Both are 22mm in from the edges so they align
-       with the text block the @page rule establishes. */
-    headerTemplate: `
-      <div style="width:100%;padding:0 22mm;box-sizing:border-box;
-                  font-family:'Segoe UI',system-ui,sans-serif;">
-        <div style="border-bottom:0.5px solid #c8c8c8;padding-bottom:3px;
-                    font-size:7pt;letter-spacing:0.08em;text-transform:uppercase;
-                    color:#767676;display:flex;justify-content:space-between;">
-          <span>Persistent memory architecture for agents</span>
-          <span>Khemani &middot; Ahuja &middot; Bassi &middot; Agrawal</span>
-        </div>
-      </div>`,
+    /* No running head.
+       The source document this paper is set to has none — no header text, no
+       footer text, no rules, no separators, nothing but a page number. A running
+       head on every sheet is a convention of journal templates and of website
+       exports, and it was the loudest remaining thing saying "this was printed
+       from a web page". Chrome still needs a header template or it substitutes
+       its own title-and-date line, so the header is an empty box. */
+    headerTemplate: '<div></div>',
+    /* The folio: a bare numeral in the bottom margin. Times at body size, no
+       rule above it, no "page", no dashes, present on page one. Puppeteer draws
+       this outside the page box with its own tiny stylesheet and inherits
+       nothing, so every value has to be stated. */
     footerTemplate: `
-      <div style="width:100%;padding:0 22mm;box-sizing:border-box;
-                  font-family:'Segoe UI',system-ui,sans-serif;">
-        <div style="border-top:0.5px solid #c8c8c8;padding-top:4px;text-align:center;
-                    font-size:8pt;color:#4a4a4a;font-variant-numeric:tabular-nums;">
-          <span class="pageNumber"></span>
-        </div>
+      <div style="width:100%;text-align:center;
+                  font-family:'Times New Roman',Times,serif;
+                  font-size:10.1pt;color:#000;">
+        <span class="pageNumber"></span>
       </div>`,
-    /* The @page rule in globals.css owns the margins; `preferCSSPageSize` makes
-       Chrome honour it. These values only reserve the bands the header and
-       footer are drawn into, so they must match the CSS or the running head
-       will overlap the first line of text. */
-    margin: { top: '20mm', bottom: '18mm', left: '22mm', right: '22mm' },
+    /* These reserve the bands the header and footer are drawn into, and they
+       must match the @page rule in globals.css or the folio overlaps the last
+       line of text. 35mm sides leave a 140mm measure on A4 — 396.9pt, which is
+       the source document's 396pt measure to within a point, so the line length
+       and therefore the texture of the page carries over exactly. */
+    margin: { top: '29mm', bottom: '32mm', left: '35mm', right: '35mm' },
   })
 
   await browser.close()

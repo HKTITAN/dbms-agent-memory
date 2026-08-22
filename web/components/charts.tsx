@@ -341,7 +341,8 @@ export function BarChart({
                 display: 'block',
                 height: 18,
                 background: 'var(--data-grid)',
-                borderRadius: 2,
+                borderRadius: 'var(--radius-pill)',
+                boxShadow: 'inset 0 2px 0 rgba(17,17,17,0.06)',
                 overflow: 'hidden',
               }}
             >
@@ -351,7 +352,7 @@ export function BarChart({
                   width: `${width(d.value)}%`,
                   height: '100%',
                   background: d.tone ?? (d.emphasis ? 'var(--data-4)' : 'var(--data-2)'),
-                  borderRadius: 2,
+                  borderRadius: 'var(--radius-pill)',
                 }}
               />
             </span>
@@ -433,7 +434,7 @@ export function GroupedBars({
           >
             <span
               aria-hidden="true"
-              style={{ width: 10, height: 10, borderRadius: 2, background: l.tone, flex: '0 0 auto' }}
+              style={{ width: 10, height: 10, borderRadius: 'var(--radius-pill)', background: l.tone, flex: '0 0 auto' }}
             />
             {l.label}
           </span>
@@ -467,7 +468,7 @@ export function GroupedBars({
                       display: 'block',
                       height: 12,
                       background: 'var(--data-grid)',
-                      borderRadius: 2,
+                      borderRadius: 'var(--radius-pill)',
                       overflow: 'hidden',
                     }}
                   >
@@ -477,7 +478,7 @@ export function GroupedBars({
                         width: `${width(b.value)}%`,
                         height: '100%',
                         background: b.tone ?? toneOf.get(b.label) ?? RAMP[i % RAMP.length],
-                        borderRadius: 2,
+                        borderRadius: 'var(--radius-pill)',
                       }}
                     />
                   </span>

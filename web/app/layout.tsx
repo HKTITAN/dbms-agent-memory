@@ -1,27 +1,56 @@
 import type { Metadata } from 'next'
 import { GeistSans } from 'geist/font/sans'
 import { GeistMono } from 'geist/font/mono'
-import { Source_Serif_4, Nunito } from 'next/font/google'
+import { Nunito, Tinos, Gelasio, Cousine } from 'next/font/google'
 import './globals.css'
 
-/* The text face for print.
+/* The faces for print.
  *
- * The web edition is set in Geist, which is a screen face and right for a page
- * that is read on a screen. The PDF is a different document with a different
- * job: forty-odd pages read on paper at 9.5pt, where a grotesque sans gives the
- * eye nothing to hold onto between lines. Source Serif is drawn for exactly this
- * — a text face with real italics, lining figures for the tables, and enough
- * contrast to survive a laser printer.
+ * The printed edition is set to the conventions of Nakamoto's Bitcoin paper,
+ * which the user named as the target. That document is Times New Roman 10.1pt on
+ * a 396pt measure with Century Schoolbook Bold for the title and the section
+ * headings, Courier New for code, and Arial inside the diagrams — four faces,
+ * three of them metric-defined rather than chosen.
  *
- * `next/font` downloads it at build time and self-hosts it, so the PDF embeds a
- * font it owns rather than one that happens to be installed on whoever renders
- * it. Only print consumes it; the screen never loads it. */
-const serif = Source_Serif_4({
+ * None of those three are licensable for embedding, so each is replaced by its
+ * metric-compatible sibling, which is what makes the substitution honest rather
+ * than approximate:
+ *
+ *   Times New Roman      -> Tinos    (same widths, same 10.1pt colour)
+ *   Courier New          -> Cousine  (same 0.6em advance)
+ *   Century Schoolbook   -> Gelasio  (no metric twin exists; Gelasio is the
+ *                                     nearest schoolbook-genre bold, and the
+ *                                     role it plays — a rounder, heavier face
+ *                                     contrasting a Times body — survives)
+ *
+ * Arial is left to the system stack in print, exactly as the source document
+ * does: it appears only inside diagram labels and it subsets to a few dozen
+ * glyphs. Source Serif is gone. It was the right face for a paper that was
+ * typeset as a paper; it is the wrong one for a paper typeset as THIS paper.
+ *
+ * `next/font` self-hosts all three at build time, so the PDF embeds fonts the
+ * project owns rather than fonts that happen to be installed on whoever renders
+ * it. Only print consumes them; the screen never loads them. */
+const serif = Tinos({
   subsets: ['latin'],
   display: 'swap',
-  weight: ['400', '600', '700'],
+  weight: ['400', '700'],
   style: ['normal', 'italic'],
   variable: '--font-serif',
+})
+
+const serifDisplay = Gelasio({
+  subsets: ['latin'],
+  display: 'swap',
+  weight: ['600', '700'],
+  variable: '--font-serif-display',
+})
+
+const serifMono = Cousine({
+  subsets: ['latin'],
+  display: 'swap',
+  weight: ['400', '700'],
+  variable: '--font-serif-mono',
 })
 
 /* The text face for the screen.
@@ -87,7 +116,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html
       lang="en"
-      className={`${nunito.variable} ${GeistSans.variable} ${GeistMono.variable} ${serif.variable}`}
+      className={
+        `${nunito.variable} ${GeistSans.variable} ${GeistMono.variable} `
+        + `${serif.variable} ${serifDisplay.variable} ${serifMono.variable}`
+      }
       style={{ colorScheme: 'light' }}
     >
       <head>

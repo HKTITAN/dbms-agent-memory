@@ -6,15 +6,24 @@
    cannot advertise a layout the download does not have.
 
    The EPUB preview is the real generated chapter XHTML rendered at e-reader
-   proportions, so it shows reflowed text rather than a page image. */
+   proportions, so it shows reflowed text rather than a page image.
+
+   The SLIDES preview is slide 1 of the real deck at 16:9. Every animation is
+   killed before the shot, which is not fussiness: the title slide's three
+   characters carry an INFINITE bob, so the page never reaches a still state and
+   a naive screenshot is non-deterministic — the same command produces a
+   different thumbnail each run.
+
+   The DATASET preview is the treemap figure from the paper itself, so the
+   thumbnail on the download link is the same drawing the section carries. */
 
 import puppeteer from 'puppeteer'
 import JSZip from 'jszip'
+import { findBrowser } from './browser.mjs'
 import { spawn } from 'node:child_process'
-import { mkdirSync, existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
+import { mkdirSync, existsSync, readFileSync, statSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { homedir } from 'node:os'
 import { setTimeout as sleep } from 'node:timers/promises'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
@@ -25,24 +34,6 @@ const PORT = 3125
 const BASE = `http://127.0.0.1:${PORT}`
 
 mkdirSync(PUB, { recursive: true })
-
-function findBrowser() {
-  const cache = join(homedir(), '.cache', 'puppeteer')
-  for (const kind of ['chrome', 'chrome-headless-shell']) {
-    const dir = join(cache, kind)
-    if (!existsSync(dir)) continue
-    for (const b of readdirSync(dir).filter((d) => /^(win64|linux|mac)/.test(d))
-      .sort((a, b2) => b2.localeCompare(a, undefined, { numeric: true }))) {
-      for (const rel of [['chrome-win64', 'chrome.exe'], ['chrome-linux64', 'chrome']]) {
-        const exe = join(dir, b, ...rel)
-        if (existsSync(exe)) return exe
-      }
-    }
-  }
-  for (const p of ['C:/Program Files/Google/Chrome/Application/chrome.exe', '/usr/bin/google-chrome'])
-    if (existsSync(p)) return p
-  return undefined
-}
 
 async function freePort(port) {
   try { await fetch(`http://127.0.0.1:${port}`, { signal: AbortSignal.timeout(1200) }) } catch { return }
@@ -116,9 +107,65 @@ try {
     console.warn('no EPUB found — run tools/epub.mjs first; skipping EPUB preview')
   }
 
+  // ---- SLIDES preview: slide 1 of the real deck, 16:9, with motion stopped.
+  {
+    const page = await browser.newPage()
+    await page.setViewport({ width: 1280, height: 720, deviceScaleFactor: 2 })
+    await page.goto(`${BASE}/slides/index.html`, { waitUntil: 'networkidle0', timeout: 120_000 })
+    await page.addStyleTag({
+      content: `
+        /* The deck's own script adds .on to slide 1 on load; add it anyway so
+           the shot does not depend on that script having run. */
+        #deck > .slide:first-of-type { opacity: 1 !important; visibility: visible !important; }
+        /* Three animations move on this slide: the staggered entrance, the
+           characters' infinite bob, and the bar grow. All of them off, and the
+           entrance's start state undone, or the shot catches it mid-rise. */
+        *, *::before, *::after { animation: none !important; transition: none !important; }
+        .slide.on .slide-in > * { opacity: 1 !important; transform: none !important; }
+        /* Navigation is not part of the slide. */
+        .chrome { display: none !important; }
+      `,
+    })
+    await page.evaluate(() => {
+      const first = document.querySelector('#deck > .slide')
+      if (first) first.classList.add('on')
+      document.body.dataset.accent = 'relational'
+    })
+    await page.evaluate(() => document.fonts.ready)
+    await sleep(500)
+    await page.screenshot({ path: join(PUB, 'preview-slides.png'), clip: { x: 0, y: 0, width: 1280, height: 720 } })
+    await page.close()
+    console.log('wrote public/preview-slides.png')
+  }
+
+  // ---- DATASET preview: the treemap the paper carries, not a picture of JSON.
+  {
+    const page = await browser.newPage()
+    await page.setViewport({ width: 1100, height: 900, deviceScaleFactor: 2 })
+    await page.goto(BASE, { waitUntil: 'networkidle0', timeout: 120_000 })
+    await page.evaluate(() => document.fonts.ready)
+    await sleep(600)
+    /* Element handle rather than a computed clip. `getBoundingClientRect` is
+       relative to the VIEWPORT and `page.screenshot({clip})` is relative to the
+       DOCUMENT, so feeding one to the other after scrolling captures whatever
+       happens to sit that far down from the top of the page — which the first
+       time round was the masthead. The handle carries its own geometry. */
+    const fig = await page.$('#explore .figure')
+    if (fig) {
+      await fig.scrollIntoView()
+      await sleep(200)
+      const box = await fig.boundingBox()
+      await fig.screenshot({ path: join(PUB, 'preview-dataset.png') })
+      console.log(`wrote public/preview-dataset.png (${Math.round(box?.width ?? 0)}x${Math.round(box?.height ?? 0)})`)
+    } else {
+      console.warn('! no #explore .figure on the page — skipping dataset preview')
+    }
+    await page.close()
+  }
+
   await browser.close()
 
-  for (const f of ['preview-pdf.png', 'preview-epub.png']) {
+  for (const f of ['preview-pdf.png', 'preview-epub.png', 'preview-slides.png', 'preview-dataset.png']) {
     const p = join(PUB, f)
     if (existsSync(p)) console.log(`  ${f}  ${(statSync(p).size / 1024).toFixed(0)} KB`)
   }

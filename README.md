@@ -139,9 +139,16 @@ document that is read rather than glanced at: the chrome carries the language an
 column stays calm. In both, the joke stops at the data — every figure that carries evidence is
 drawn plainly, on a zero baseline, in tabular numerals, and colour is never the only signal.
 
-The **PDF** inherits none of it. Source Serif on a 130 mm measure, booktabs rules, no colour
-and no rounding, because it is a review paper and not a screenshot of a website. The boundary
-is a single appended `@media print` block at the foot of `web/app/globals.css`.
+The **PDF** inherits none of it. It is set to the conventions of
+[Nakamoto's Bitcoin paper](https://bitcoin.org/bitcoin.pdf), measured off that file rather than
+remembered: Times 10.1 pt on 11.65 pt leading, justified with hyphenation off, a 14.4 pt
+first-line indent and no space between paragraphs, Century Schoolbook Bold headings, a run-in
+bold `Abstract.` over an inset block, Courier code with no frame, Arial only inside diagram
+labels, two inks, no rules, no running head, and a bare numeral for a folio. On A4, 35 mm side
+margins give a 140 mm measure — 396.9 pt against the source document's 396 pt, so the line
+length carries over exactly. Tinos, Cousine and Gelasio stand in for Times, Courier and Century
+Schoolbook; Arial is left to the system stack, as the source document leaves it. The boundary is
+the `@media print` block at the foot of `web/app/globals.css`.
 
 WCAG 2.2 AA is verified arithmetically rather than by eye, against the darkest surface each
 colour is actually set on — which is why the accent splits into a fill, an edge, a tint and an

@@ -23,6 +23,10 @@ type Download = {
   meta: string
   preview: string
   previewAlt: string
+  /* The rail used to carry two portrait documents, so 3:4 was hardcoded. A slide
+     is 16:9 and the dataset map is landscape; forcing either into a portrait box
+     with `object-fit: cover` crops away the thing the thumbnail exists to show. */
+  previewAspect?: string
 }
 
 function DownloadLink({ item }: { item: Download }) {
@@ -58,9 +62,12 @@ function DownloadLink({ item }: { item: Download }) {
         onFocus={show}
         onBlur={hide}
         onClick={() => play('done')}
-        /* 44 rather than 36: an inline style beats the stylesheet, so the rail's
-         controls were the only ones in the paper under the 44px target floor. */
-      style={{ width: '100%', justifyContent: 'flex-start', minHeight: 44, fontSize: '0.8125rem' }}
+        /* Height and size come from `.btn` now. They were pinned here to lift
+         the rail's controls off a 36px floor, and an inline style beats the
+         stylesheet — so once `.btn` grew to the language's 50px these three
+         stayed at 44 and were the only buttons in the paper that were not the
+         button. Only the layout that is genuinely local stays. */
+      style={{ width: '100%', justifyContent: 'flex-start' }}
       >
         <Icon name="download" size={15} />
         {item.label}
@@ -111,7 +118,7 @@ function DownloadLink({ item }: { item: Download }) {
           {/* Reserve the box before the image decodes so nothing jumps. */}
           <span
             style={{
-              display: 'block', width: '100%', aspectRatio: '3 / 4',
+              display: 'block', width: '100%', aspectRatio: item.previewAspect ?? '3 / 4',
               background: 'var(--bg-sunken)', borderRadius: 3, overflow: 'hidden',
             }}
           >
@@ -121,6 +128,8 @@ function DownloadLink({ item }: { item: Download }) {
               alt={item.previewAlt}
               width={156}
               height={208}
+              /* Intrinsic size is a hint for the decoder; the box above owns the
+                 real proportions, which differ per item. */
               loading="lazy"
               decoding="async"
               style={{ display: 'block', width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top' }}
@@ -156,9 +165,8 @@ function SoundSwitch() {
         // Confirm the new state in the medium being switched.
         if (next) play('toggle')
       }}
-      /* 44 rather than 36: an inline style beats the stylesheet, so the rail's
-         controls were the only ones in the paper under the 44px target floor. */
-      style={{ width: '100%', justifyContent: 'flex-start', minHeight: 44, fontSize: '0.8125rem' }}
+      /* See DownloadLink: height and size belong to `.btn`, not here. */
+      style={{ width: '100%', justifyContent: 'flex-start' }}
     >
       <Icon name={on ? 'soundOn' : 'soundOff'} size={15} />
       Sound

@@ -1,6 +1,6 @@
 schema: design.v1
 name: persistent-memory-architecture-for-agents
-version: 2.0.0
+version: 3.0.0
 status: adopted
 
 agent:
@@ -36,12 +36,23 @@ surfaces:
     Nunito, applied to a document that is read for forty minutes rather than
     glanced at: the chrome carries the language and the reading column stays calm.
   print: >
-    The PDF, rendered from the same page. It inherits NONE of this. Source Serif
-    on a 130mm measure, booktabs rules, no colour and no rounding, because it is a
-    review paper and not a screenshot of a website. The boundary is one appended
-    `@media print` block at the foot of web/app/globals.css; the load-bearing line
-    in it re-points `--font-sans` away from Nunito, which is what keeps a rounded
-    display face out of forty-three pages of running heads.
+    The PDF, rendered from the same page. It inherits NONE of this, and it is not
+    set to a generic academic template either — it is set to the conventions of
+    Nakamoto's Bitcoin paper, measured off that file rather than remembered:
+    Times New Roman 10.1pt on 11.65pt leading, justified, hyphenation off, a
+    14.4pt first-line indent and ZERO space between paragraphs, Century
+    Schoolbook Bold headings with the number hanging, a run-in bold "Abstract."
+    over a block inset from both edges, Courier 8pt code with no frame, Arial
+    only inside diagram labels, two inks, no rules, no running head, and a bare
+    numeral for a folio. Converted to A4 at 35mm side margins, which give a
+    140mm measure — 396.9pt against the source document's 396pt, so the line
+    length and therefore the texture of the page carry over exactly.
+    The metric substitutions are Tinos for Times, Cousine for Courier, and
+    Gelasio for Century Schoolbook; Arial is left to the system stack, as the
+    source document leaves it.
+    The boundary is the print block at the foot of web/app/globals.css. The
+    load-bearing line in it re-points `--font-sans` away from Nunito, which is
+    what keeps a rounded display face out of the printed edition entirely.
 
 intent:
   reference: >

@@ -47,6 +47,7 @@ import {
   capture, classes, schema, exp, limits, armClass, amp,
   n, pct, times, bytes, duration,
 } from '@/lib/data'
+import { Icon } from '@/components/icons'
 
 /* ------------------------------------------------------------- primitives */
 
@@ -231,7 +232,8 @@ function Meter({
         display: 'block',
         height,
         background: 'var(--data-grid)',
-        borderRadius: 2,
+        borderRadius: 'var(--radius-pill)',
+        boxShadow: 'inset 0 2px 0 rgba(17,17,17,0.06)',
         overflow: 'hidden',
       }}
     >
@@ -1590,14 +1592,16 @@ export function WriterRaceExplorer() {
               </span>
               <span className="seg no-print" role="group" aria-label="Step through the interleave">
                 <button type="button" onClick={() => advance(-1)} disabled={step === 0}>
-                  ◀ back
+                  <Icon name="chevronLeft" size={13} />
+                  back
                 </button>
                 <button
                   type="button"
                   onClick={() => advance(1)}
                   disabled={step === RACE.length - 1}
                 >
-                  next ▶
+                  next
+                  <Icon name="chevronRight" size={13} />
                 </button>
               </span>
             </div>

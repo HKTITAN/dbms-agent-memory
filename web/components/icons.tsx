@@ -194,6 +194,12 @@ const PATHS = {
   ),
 
   arrowRight: <path d="M4.5 12H19.5M14.5 7L19.5 12L14.5 17" />,
+  /* Chevrons, not arrows: these sit inside a stepper where the pair reads as one
+     control, and a shafted arrow at that size crowds its own label. Drawn on the
+     same 24-grid and the same half-unit coordinates as everything else, so the
+     set stays one set. */
+  chevronLeft: <path d="M14.5 6.5L9 12L14.5 17.5" />,
+  chevronRight: <path d="M9.5 6.5L15 12L9.5 17.5" />,
   arrowDown: <path d="M12 4.5V19.5M7 14.5L12 19.5L17 14.5" />,
 
   /* ----------------------------------------------------------------- actors */

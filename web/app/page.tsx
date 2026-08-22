@@ -29,6 +29,7 @@ import {
 import { QueryCostExplorer, VaultSizeExplorer, WriterRaceExplorer } from '@/components/explainers'
 import { Sidebar } from '@/components/sidebar'
 import { QrCode, QR_URL } from '@/components/qr-code'
+import { DatasetMap, DatasetSections } from '@/components/dataset'
 
 export const dynamic = 'force-static'
 
@@ -76,12 +77,35 @@ const DOWNLOADS = [
     preview: '/preview-epub.png',
     previewAlt: 'The abstract, reflowed for an e-reader',
   },
+  {
+    href: '/persistent-memory-architecture-for-agents-slides.pdf',
+    label: 'Slides',
+    meta: '16:9',
+    preview: '/preview-slides.png',
+    previewAlt: 'The title slide of the talk',
+    previewAspect: '16 / 9',
+  },
+  {
+    href: '/capture.json',
+    label: 'Data',
+    meta: 'JSON',
+    preview: '/preview-dataset.png',
+    previewAlt: 'The dataset by weight — 21 sections, one of them most of it',
+    previewAspect: '3 / 2',
+  },
 ]
 
-/* Everything this repository produces, in one place. The slides and the dataset
-   are not in the sidebar's list because that list carries page previews and
-   these two have nothing to preview — but a reader who wants the numbers should
-   not have to clone the repository to get them. */
+/* Everything this repository produces, in one place.
+
+   The rail now carries four of these five; it used to carry two, on the reasoning
+   that the slides and the dataset had nothing to preview. That was true of the
+   dataset and false of the slides, and it was the wrong conclusion either way:
+   the fix for a download with no picture is to make it one. The slides preview is
+   slide 1 of the real deck, and the dataset preview is the treemap from §12.1,
+   which is the same drawing the section carries.
+
+   The live deck stays here rather than in the rail: everything in the rail is a
+   file you take away, and that one is a place you go. */
 const ARTIFACTS = [
   /* Two of these are the same document, so they cannot both be called "The
      paper" — a list where two rows share a name reads as a duplicate, and the
@@ -163,6 +187,10 @@ export default function Paper() {
           <p className="tp-affil">
             BTech, Computer Science and Engineering &nbsp;·&nbsp; submitted to {AUTHORS.submittedTo}
           </p>
+          {/* Three centred lines under the title, one fact each — who, where,
+              and where it lives — which is how the paper this one is set to
+              arranges its byline. */}
+          <p className="tp-url">{QR_URL.replace('https://', '')}</p>
 
           <p className="tp-label">Abstract</p>
           <div className="tp-abstract">
@@ -245,7 +273,7 @@ export default function Paper() {
 
           <div className="downloads">
             <div>
-              <h2 className="kicker" id="artifacts-heading">Everything, downloadable</h2>
+              <h2 className="heading-16" id="artifacts-heading">Everything downloadable</h2>
               <ul className="download-list" aria-labelledby="artifacts-heading">
                 {ARTIFACTS.map((a) => (
                   <li key={a.href}>
@@ -1364,12 +1392,41 @@ export default function Paper() {
         </section>
 
         {/* -------------------------------------------------------- explore */}
-        {/* The explorers are inert on paper, so the printed edition says where
-            they are instead of printing twelve pages of their default state. */}
-        <section className="section print-only">
+        {/* One section, two editions. It used to be two sections — a `print-only`
+            one saying where the explorers are, and a screen one holding them —
+            which meant the heading, the numbering and the intro prose existed
+            twice and could drift. The parts that differ by medium are now the
+            only parts marked, and the dataset map between them is the same
+            figure in both, because a treemap is not a control and prints. */}
+        <section id="explore" className="section">
           <h2 className="heading-24">12. Explore the evidence</h2>
           <div className="prose">
             <p>
+              Every number in this paper is a reduction of one file, and that file is downloadable.
+              Before the explorers, here is what is in it.
+            </p>
+          </div>
+
+          <h3 className="heading-20">12.1 What is in the download</h3>
+          <div className="prose">
+            <p>
+              <span className="mono">capture.json</span> is not a summary of the run. It is the run:
+              one record per question per arm, the schema it was measured against, the query plans
+              the engines chose, and the provenance of the machine that produced it. The map below
+              is measured from the file at render time rather than described, so it cannot advertise
+              a shape the download does not have.
+            </p>
+          </div>
+
+          <Plate label="Figure 12">
+            <DatasetMap />
+          </Plate>
+
+          <DatasetSections />
+
+          <h3 className="heading-20">12.2 The explorers</h3>
+          <div className="prose">
+            <p className="print-only">
               Three interactive explorers accompany the web edition: the cost of any one question
               class, the wake-up cost against vault size, and the upsert race at a chosen number of
               writers. They compute from the same dataset as every figure above, and they are
@@ -1377,27 +1434,23 @@ export default function Paper() {
               <span className="mono">{QR_URL}</span>, and the dataset behind them is at{' '}
               <span className="mono">{QR_URL}/capture.json</span>.
             </p>
-          </div>
-        </section>
-
-        <section id="explore" className="section">
-          <h2 className="heading-24">12. Explore the evidence</h2>
-          <div className="prose">
-            <p>
-              Everything below is computed from the same dataset as the figures above. These are the
-              parts of the argument that are easier to feel than to read.
+            <p className="no-print">
+              These are the parts of the argument that are easier to feel than to read. Each one
+              computes from the same dataset as the figures above.
             </p>
           </div>
 
-          <Plate label="Explorer 1">
-            <QueryCostExplorer />
-          </Plate>
-          <Plate label="Explorer 2">
-            <VaultSizeExplorer />
-          </Plate>
-          <Plate label="Explorer 3">
-            <WriterRaceExplorer />
-          </Plate>
+          <div className="no-print">
+            <Plate label="Explorer 1">
+              <QueryCostExplorer />
+            </Plate>
+            <Plate label="Explorer 2">
+              <VaultSizeExplorer />
+            </Plate>
+            <Plate label="Explorer 3">
+              <WriterRaceExplorer />
+            </Plate>
+          </div>
         </section>
 
         {/* ------------------------------------------------------ discussion */}
