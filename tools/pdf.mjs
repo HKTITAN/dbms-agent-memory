@@ -151,17 +151,39 @@ try {
     displayHeaderFooter: true,
     // Running head and folio only. Anything more competes with the content for
     // attention on every one of thirty pages.
+    /* Running head and folio.
+       Puppeteer renders these outside the page box with their own tiny default
+       stylesheet, so every value has to be stated: it does not inherit the
+       document's fonts, sizes or colours.
+
+       The head is set in small caps at 7pt with wide tracking and sits on a
+       hairline, which is what distinguishes a running head from a line of body
+       text that happens to be at the top of the page. The folio is centred
+       under a matching hairline. Both are 22mm in from the edges so they align
+       with the text block the @page rule establishes. */
     headerTemplate: `
-      <div style="width:100%;font-family:ui-sans-serif,system-ui,sans-serif;font-size:8pt;
-                  color:#8a8a8a;text-align:center;padding:0 16mm;">
-        Agent memory as a database problem &middot; a review of Notion&rsquo;s Lore
+      <div style="width:100%;padding:0 22mm;box-sizing:border-box;
+                  font-family:'Segoe UI',system-ui,sans-serif;">
+        <div style="border-bottom:0.5px solid #c8c8c8;padding-bottom:3px;
+                    font-size:7pt;letter-spacing:0.08em;text-transform:uppercase;
+                    color:#767676;display:flex;justify-content:space-between;">
+          <span>Agent memory as a database problem</span>
+          <span>Khemani &middot; Ahuja &middot; Bassi &middot; Agrawal</span>
+        </div>
       </div>`,
     footerTemplate: `
-      <div style="width:100%;font-family:ui-sans-serif,system-ui,sans-serif;font-size:8pt;
-                  color:#8a8a8a;text-align:center;padding:0 16mm;">
-        <span class="pageNumber"></span>
+      <div style="width:100%;padding:0 22mm;box-sizing:border-box;
+                  font-family:'Segoe UI',system-ui,sans-serif;">
+        <div style="border-top:0.5px solid #c8c8c8;padding-top:4px;text-align:center;
+                    font-size:8pt;color:#4a4a4a;font-variant-numeric:tabular-nums;">
+          <span class="pageNumber"></span>
+        </div>
       </div>`,
-    margin: { top: '18mm', bottom: '16mm', left: '16mm', right: '16mm' },
+    /* The @page rule in globals.css owns the margins; `preferCSSPageSize` makes
+       Chrome honour it. These values only reserve the bands the header and
+       footer are drawn into, so they must match the CSS or the running head
+       will overlap the first line of text. */
+    margin: { top: '20mm', bottom: '18mm', left: '22mm', right: '22mm' },
   })
 
   await browser.close()

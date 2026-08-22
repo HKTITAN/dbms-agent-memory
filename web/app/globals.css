@@ -1393,3 +1393,618 @@ input[type="range"] {
 @media (min-resolution: 192dpi) {
   :root { --hairline-width: 0.5px; }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   THE PRINTED EDITION
+
+   Everything above this block styles a web page. This block typesets a paper,
+   and the two are different documents that happen to share a source.
+
+   The previous print rules produced a PDF that read as a website export, and
+   the tells were specific rather than vague:
+
+     · a 178mm measure at 8.9pt — about 92 characters a line, where the eye
+       wants 45 to 75 and loses the start of the next line past about 80
+     · a screen grotesque doing forty pages of continuous reading
+     · every table wrapped in its screen card: rounded corners, a 1px box and a
+       tinted header bar, none of which exist in a typeset table
+     · break-inside: avoid on a figure four pages long, which cannot avoid
+       breaking and instead pushed itself to the next page and left 85% of one
+       blank
+     · flags rendered as bordered chips, which is a UI affordance printed onto
+       paper where nothing can be clicked
+     · no front matter: the paper opened on the site's download list and QR
+
+   The rules below fix each one. Values are chosen, not defaulted, and the
+   reason is in the comment beside them.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+@media print {
+  /* ---- page geometry -----------------------------------------------------
+     A4 is 210mm. 22mm of side margin leaves a 166mm printable width, which is
+     the full-bleed measure for figures and tables. Prose sits narrower than
+     that, inside it — see .prose below. The bottom margin is deeper than the
+     top so the folio has air under it and the text block sits slightly high on
+     the sheet, which is what stops a page looking bottom-heavy. */
+  @page {
+    size: A4;
+    margin: 20mm 22mm 24mm;
+  }
+
+  html { font-size: 12pt; }
+
+  /* ---- the text face -----------------------------------------------------
+     9.6pt on 14.6pt. The leading is 1.52 rather than the 1.38 the old rules
+     used, because a serif at this size on a 130mm measure needs the extra to
+     keep the lines from binding into a grey block.
+
+     Justified with hyphenation. Justification without hyphenation opens rivers
+     at this measure; with it, the breaks land where a typesetter would put
+     them. text-wrap: pretty cleans up the last line of each paragraph. */
+  body {
+    font-family: var(--font-serif), Cambria, Charter, Georgia, serif;
+    font-size: 9.6pt;
+    line-height: 1.52;
+    font-variant-numeric: lining-nums proportional-nums;
+    text-rendering: geometricPrecision;
+    background: #fff;
+    color: #111;
+  }
+
+  .body p,
+  .prose p,
+  .prose li {
+    hyphens: auto;
+    -webkit-hyphens: auto;
+    text-align: justify;
+    text-wrap: pretty;
+    orphans: 3;
+    widows: 3;
+  }
+
+  /* No space between paragraphs; an indent instead. A blank line between
+     paragraphs is a screen convention — on screen there is no page to run out
+     of. Set type marks the break with a first-line indent, which costs nothing
+     and reads faster. Only a paragraph following another paragraph is indented:
+     the first one after a heading or a figure has nothing above it to be
+     distinguished from. */
+  .prose p { margin: 0 0 0.1em; }
+  .prose p + p { text-indent: 1.15em; }
+  .prose ol,
+  .prose ul { margin: 0.5em 0 0.7em; padding-left: 1.4em; }
+  .prose li { margin-bottom: 0.28em; }
+  .prose li p { text-indent: 0; }
+
+  /* The last paragraph before a figure still needs air under it. */
+  .prose + .figure,
+  .prose + div > .figure { margin-top: 1.3em; }
+
+  /* ---- the measure -------------------------------------------------------
+     130mm at 9.6pt Source Serif is roughly 68 characters — inside Bringhurst's
+     45 to 75 and near the 60 to 70 he calls the sweet spot. Everything that is
+     prose gets it. Everything that is evidence may use the full 166mm, because
+     a nine-column table cannot be narrowed without shrinking the type past
+     legibility, and a figure that has to be squinted at is worse than a figure
+     wider than the text above it.
+
+     Both start at the same left edge, so the page has one spine and the wide
+     things extend right. That asymmetry is deliberate and is what a technical
+     report looks like. */
+  .shell,
+  .with-rail,
+  main {
+    display: block !important;
+    max-width: 166mm !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .prose,
+  .body > p,
+  .section > p,
+  .lede {
+    max-width: 130mm;
+  }
+
+  /* ---- hierarchy ---------------------------------------------------------
+     Built from size, weight and space as a set. The sans is kept for headings
+     only: a serif page with sans headings is a common and legible pairing, and
+     it also means the two faces never meet inside a sentence. */
+  h1, h2, h3, h4,
+  .title, .heading-24, .heading-20, .heading-16 {
+    font-family: var(--font-sans);
+    font-weight: 600;
+    letter-spacing: -0.012em;
+    color: #000;
+    break-after: avoid-page;
+    break-inside: avoid;
+    text-wrap: balance;
+  }
+
+  .heading-24 {
+    font-size: 13pt;
+    line-height: 1.2;
+    margin: 1.9em 0 0.55em;
+    padding-top: 0.5em;
+    border-top: 0.5pt solid #000;
+  }
+  .heading-20 {
+    font-size: 10.6pt;
+    line-height: 1.25;
+    margin: 1.5em 0 0.4em;
+  }
+  .heading-16 {
+    font-size: 9.6pt;
+    margin: 1.2em 0 0.3em;
+  }
+
+  .section {
+    padding-block: 0;
+    border-top: none;
+  }
+
+  /* ---- figures and tables ------------------------------------------------
+     The card is a screen object. On paper a figure is its content, its caption
+     and the white space around it; a box around all three is a second frame
+     inside the frame the page already provides. Strip it. */
+  .figure,
+  figure {
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: none !important;
+    box-shadow: none !important;
+    margin: 1.15em 0 1.35em;
+    padding: 0 !important;
+    max-width: 166mm;
+  }
+
+  /* The caption. Numbered label in the sans, set small and tight, sitting above
+     tables and below figures — the convention every journal uses, and the
+     reason is legibility: a table's caption is read before the table and a
+     figure's after the figure. */
+  .figure-head {
+    border: 0 !important;
+    background: none !important;
+    padding: 0 0 0.35em !important;
+    font-family: var(--font-sans);
+    font-size: 8.1pt;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    color: #000;
+    display: block;
+    break-after: avoid-page;
+    /* The head holds a numbered label and a sub-line. Without this the two can
+       land on different pages: the label ends page 17 and "retraction lag ·
+       median 23 d" opens page 18 alone above the figure, reading as a stray
+       fragment rather than a caption. */
+    break-inside: avoid;
+  }
+  .figure-head .meta { float: none; display: block; font-weight: 400; }
+
+  .figure-body {
+    padding: 0 !important;
+    border: 0 !important;
+    background: none !important;
+  }
+
+  .figure-foot,
+  .caption {
+    border: 0 !important;
+    background: none !important;
+    padding: 0.4em 0 0 !important;
+    margin: 0;
+    max-width: 130mm;
+    font-size: 8.1pt;
+    line-height: 1.4;
+    font-style: italic;
+    color: #333;
+    text-align: left;
+    hyphens: auto;
+    break-before: avoid-page;
+  }
+
+  /* ---- tables ------------------------------------------------------------
+     Booktabs: a rule above the header, a rule under it, a rule at the foot, and
+     nothing else. No vertical rules, no zebra, no cell borders — the eye tracks
+     a row by alignment, and every extra rule is noise competing with the
+     numbers. Rules are hairlines; the head rule is heavier so the header reads
+     as a header without a fill behind it. */
+  .table-wrap {
+    overflow: visible !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: none !important;
+    margin: 0;
+    max-width: 166mm;
+  }
+
+  table {
+    font-family: var(--font-sans);
+    font-size: 7.4pt;
+    line-height: 1.32;
+    border-collapse: collapse;
+    width: auto;
+    max-width: 166mm;
+    font-variant-numeric: tabular-nums lining-nums;
+    break-inside: auto;
+  }
+
+  thead { display: table-header-group; }
+  tfoot { display: table-footer-group; }
+
+  thead th {
+    border: 0;
+    border-bottom: 0.9pt solid #000;
+    border-top: 0.9pt solid #000;
+    background: none !important;
+    font-weight: 600;
+    text-transform: none;
+    letter-spacing: 0.01em;
+    padding: 0.42em 0.7em 0.36em 0;
+    vertical-align: bottom;
+    color: #000;
+  }
+
+  tbody th,
+  tbody td {
+    border: 0;
+    border-bottom: 0.4pt solid #d4d4d4;
+    background: none !important;
+    padding: 0.3em 0.7em 0.28em 0;
+    vertical-align: top;
+  }
+  tbody tr:last-child th,
+  tbody tr:last-child td { border-bottom: 0.9pt solid #000; }
+
+  tfoot th, tfoot td {
+    border: 0;
+    padding: 0.3em 0.7em 0.28em 0;
+    font-style: italic;
+  }
+
+  th:last-child, td:last-child { padding-right: 0; }
+
+  /* Text inside a cell must be sized relative to the cell.
+     `.meta` and `.mono` set their size in rem, which is anchored to the root and
+     therefore ignores the table's own 7.4pt — so a "cap 2 000" annotation under
+     a property name rendered at 9.75pt, larger than the name it annotates and
+     larger than the column header above it. Everything inside a table is em from
+     here down. */
+  td .meta, th .meta,
+  td .mono, th .mono,
+  td .num,  th .num,
+  td .pill, th .pill,
+  td small, th small {
+    font-size: 0.9em;
+    line-height: 1.3;
+  }
+  td .meta, th .meta {
+    color: #555;
+    /* A value like "cap 2 000" or "10 options" is one token to a reader. Letting
+       it break at its space turns a two-line cell into a three-line one and
+       makes the column look like a stack of fragments.
+
+       Scoped to cells, not to `table .meta`: a caption is also a descendant of
+       its table, and several of them carry `.meta`. The unscoped rule set
+       `nowrap` on a two-sentence caption, which then ran off the right edge of
+       the sheet and was clipped. */
+    white-space: nowrap;
+  }
+  td .mono, th .mono { font-family: var(--font-mono); }
+
+  /* The foreign-key line under a property name is subordinate to it. */
+  th .meta { display: block; font-weight: 400; }
+
+  /* A caption is prose: it wraps like prose and is set like prose, whatever
+     class it carries. Several captions carry `.meta`, which is monospaced by
+     design on screen — and `.meta` outranks a bare `caption` selector, so the
+     serif rule above lost and whole captions came out in the code face.
+     `caption.meta` outranks it back. */
+  caption,
+  caption.meta,
+  caption .meta {
+    white-space: normal !important;
+    font-family: var(--font-serif), Georgia, serif !important;
+    font-style: italic;
+    font-size: 8pt;
+    letter-spacing: 0;
+    color: #333;
+  }
+  /* An identifier quoted inside a caption is still an identifier. */
+  caption .mono { font-family: var(--font-mono) !important; font-style: normal; }
+
+  caption {
+    caption-side: top;
+    text-align: left;
+    font-family: var(--font-serif), Georgia, serif;
+    font-style: italic;
+    font-size: 8pt;
+    line-height: 1.4;
+    color: #333;
+    padding: 0 0 0.45em;
+    max-width: 130mm;
+  }
+
+  /* ---- flags, pills, chips ----------------------------------------------
+     A pill is an affordance. Printed, it is a rectangle around a word that
+     nothing can be done to. The word is the information; keep the word, and
+     move the distinction the colour was carrying into a mark that survives
+     greyscale. */
+  .pill,
+  .pill-ok,
+  .pill-bad,
+  .pill-accent {
+    display: inline;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: none !important;
+    padding: 0 !important;
+    font-family: var(--font-sans);
+    font-size: 0.92em;
+    font-weight: 500;
+    color: #000;
+    white-space: nowrap;
+  }
+  .pill-bad::before { content: "\25AA\00A0"; }
+  .pill-ok::before  { content: "\25AB\00A0"; }
+
+  /* ---- breaking ----------------------------------------------------------
+     The rule that produced the 85%-empty page was break-inside: avoid applied
+     to every figure. A figure shorter than a page should not be split; a figure
+     four pages long has no choice. So: avoid where it is possible, allow where
+     it is not, and never split a caption from what it captions. */
+  .figure,
+  figure { break-inside: auto; }
+
+  .figure > .figure-head { break-after: avoid-page; }
+  .figure > .figure-body > *:first-child { break-before: avoid-page; }
+
+  .stat-strip,
+  .stat,
+  .dia-node,
+  blockquote,
+  tr { break-inside: avoid; }
+
+  /* Not the code blocks. Appendix B is the full DDL for nine relations — two
+     pages of it — and a two-page block that is told not to break does not
+     break: it moves to the next page and leaves the one it was on empty below
+     its own heading. Same failure as the figures, same fix. Keep the first
+     lines with the heading above them and let the rest flow. */
+  pre, .code-block { break-inside: auto; break-before: avoid-page; orphans: 4; widows: 4; }
+
+  .section > h2:first-child { break-after: avoid-page; }
+
+  /* ---- code --------------------------------------------------------------
+     Wrapped, because paper cannot scroll, with a rule down the left so a
+     wrapped continuation is visibly part of the block above it. */
+  pre, .code-block {
+    font-family: var(--font-mono);
+    font-size: 6.9pt;
+    line-height: 1.42;
+    white-space: pre-wrap;
+    word-break: break-word;
+    border: 0;
+    border-left: 1.5pt solid #d4d4d4;
+    border-radius: 0;
+    background: none;
+    padding: 0.2em 0 0.2em 0.8em;
+    margin: 0.8em 0;
+    max-width: 166mm;
+  }
+  .code-head { display: none; }
+
+  /* ---- links -------------------------------------------------------------
+     A URL printed after every link turns a references section into noise. The
+     bibliography already prints its URLs as content, so only links in running
+     prose resolve, and citation markers never do. */
+  a { text-decoration: none; color: inherit; }
+  .prose a[href^="http"]:not(.cite)::after {
+    content: " (" attr(href) ")";
+    font-size: 0.84em;
+    color: #555;
+    word-break: break-all;
+  }
+  .cite {
+    font-family: var(--font-sans);
+    font-size: 0.78em;
+    vertical-align: super;
+    line-height: 0;
+    color: #000;
+  }
+
+  /* ---- what does not belong on paper ------------------------------------ */
+  .reading-rail,
+  .downloads,
+  .no-print,
+  .skip-link,
+  .sr-only,
+  .audio-dock,
+  .rail-preview { display: none !important; }
+
+  /* The three explorers exist to be operated. On paper they are inert screen
+     furniture that would add pages without adding an argument, so the section
+     is replaced by a pointer set in the print-only block in page.tsx. */
+  #explore { display: none !important; }
+
+  /* ---- references --------------------------------------------------------
+     Hanging indent, which is what makes a bibliography scannable by author. */
+  #references ol {
+    padding-left: 0;
+    max-width: 150mm;
+  }
+  #references li {
+    font-size: 8.3pt;
+    line-height: 1.4;
+    padding-left: 5.5mm;
+    text-indent: -5.5mm;
+    margin-bottom: 0.32em;
+    text-align: left;
+    hyphens: auto;
+  }
+
+  /* ---- the footer --------------------------------------------------------
+     A colophon, not a website footer. */
+  .footer {
+    display: block;
+    border-top: 0.5pt solid #000;
+    padding: 0.6em 0 0;
+    margin-top: 1.6em;
+    font-size: 7.6pt;
+    line-height: 1.45;
+    color: #333;
+    break-inside: avoid;
+  }
+
+  /* ---- SVG ---------------------------------------------------------------
+     Diagrams are line art; they must not exceed the printable width. */
+  svg {
+    max-width: 166mm !important;
+    min-width: 0 !important;
+    height: auto !important;
+    shape-rendering: geometricPrecision;
+  }
+}
+
+/* ============================================================ front matter
+   A title page exists only in print. On screen the masthead does this job and
+   does it better, because a screen reader arrives at the top of a scroll and a
+   paper reader arrives at a sheet. */
+
+.titlepage { display: none; }
+
+@media print {
+  .titlepage {
+    display: block;
+    break-after: page;
+    break-inside: avoid;
+    max-width: 150mm;
+    padding-top: 5mm;
+  }
+
+  .titlepage .tp-kicker {
+    font-family: var(--font-sans);
+    font-size: 8pt;
+    font-weight: 600;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: #444;
+    margin: 0 0 8mm;
+  }
+
+  .titlepage h1 {
+    font-family: var(--font-sans);
+    font-size: 23pt;
+    line-height: 1.08;
+    letter-spacing: -0.025em;
+    font-weight: 600;
+    margin: 0 0 3mm;
+    max-width: 140mm;
+    text-wrap: balance;
+    border: 0;
+  }
+
+  .titlepage .tp-sub {
+    font-family: var(--font-serif), Georgia, serif;
+    font-size: 12pt;
+    line-height: 1.35;
+    font-style: italic;
+    color: #333;
+    margin: 0 0 9mm;
+    max-width: 125mm;
+  }
+
+  .titlepage .tp-authors {
+    font-family: var(--font-sans);
+    font-size: 10pt;
+    line-height: 1.5;
+    margin: 0 0 1.5mm;
+    color: #000;
+  }
+  .titlepage .tp-affil {
+    font-family: var(--font-sans);
+    font-size: 8.6pt;
+    line-height: 1.5;
+    color: #444;
+    margin: 0 0 8mm;
+  }
+
+  .titlepage .tp-label {
+    font-family: var(--font-sans);
+    font-size: 7.8pt;
+    font-weight: 600;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: #000;
+    margin: 0 0 2mm;
+  }
+
+  .titlepage .tp-abstract {
+    font-size: 9pt;
+    line-height: 1.45;
+    text-align: justify;
+    hyphens: auto;
+    margin: 0 0 6mm;
+    max-width: 140mm;
+  }
+  .titlepage .tp-abstract p { margin: 0 0 0.6em; }
+  .titlepage .tp-abstract p:last-child { margin-bottom: 0; }
+
+  .titlepage .tp-keywords {
+    font-size: 8.6pt;
+    line-height: 1.45;
+    color: #222;
+    margin: 0 0 7mm;
+    max-width: 140mm;
+  }
+
+  .titlepage .tp-colophon {
+    border-top: 0.5pt solid #000;
+    padding-top: 3mm;
+    font-family: var(--font-sans);
+    font-size: 7.6pt;
+    line-height: 1.55;
+    color: #444;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 8mm;
+    align-items: end;
+  }
+  .titlepage .tp-colophon svg { width: 22mm; height: 22mm; }
+
+  /* The abstract is on the title page now, so the section that repeats it in
+     the body is redundant on paper. */
+  #abstract { display: none !important; }
+}
+
+/* ================================================================== plates
+   A figure number above a self-framing figure. The component below it supplies
+   its own title, sub-line and caption; this supplies only the thing that
+   depends on where the figure sits in the paper, which the component cannot
+   know. */
+
+.plate { margin: 1.75rem 0; }
+
+.plate-n {
+  margin: 0 0 0.4rem;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+@media print {
+  .plate { margin: 1.15em 0 1.35em; break-inside: auto; }
+  .plate-n {
+    font-family: var(--font-sans);
+    font-size: 7.4pt;
+    letter-spacing: 0.09em;
+    color: #444;
+    margin: 0 0 0.25em;
+    break-after: avoid-page;
+  }
+  /* The component's own head sits directly under the number, so it loses the
+     margin it would otherwise carry as a standalone figure. */
+  .plate > .figure,
+  .plate > div > .figure { margin-top: 0; }
+}

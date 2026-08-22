@@ -1,7 +1,28 @@
 import type { Metadata } from 'next'
 import { GeistSans } from 'geist/font/sans'
 import { GeistMono } from 'geist/font/mono'
+import { Source_Serif_4 } from 'next/font/google'
 import './globals.css'
+
+/* The text face for print.
+ *
+ * The web edition is set in Geist, which is a screen face and right for a page
+ * that is read on a screen. The PDF is a different document with a different
+ * job: forty-odd pages read on paper at 9.5pt, where a grotesque sans gives the
+ * eye nothing to hold onto between lines. Source Serif is drawn for exactly this
+ * — a text face with real italics, lining figures for the tables, and enough
+ * contrast to survive a laser printer.
+ *
+ * `next/font` downloads it at build time and self-hosts it, so the PDF embeds a
+ * font it owns rather than one that happens to be installed on whoever renders
+ * it. Only print consumes it; the screen never loads it. */
+const serif = Source_Serif_4({
+  subsets: ['latin'],
+  display: 'swap',
+  weight: ['400', '600', '700'],
+  style: ['normal', 'italic'],
+  variable: '--font-serif',
+})
 
 export const metadata: Metadata = {
   title: 'Agent memory as a database problem — a review of Notion’s Lore',
@@ -48,7 +69,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html
       lang="en"
-      className={`${GeistSans.variable} ${GeistMono.variable}`}
+      className={`${GeistSans.variable} ${GeistMono.variable} ${serif.variable}`}
       style={{ colorScheme: 'light' }}
     >
       <head>

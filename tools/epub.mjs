@@ -104,7 +104,13 @@ try {
       return root
     }
     const out = []
+    /* The title page and the print-only pointer belong to the PDF. An e-reader
+       builds its own title page from the OPF metadata, and the pointer exists
+       to say where the explorers are on a medium that cannot show them — which
+       an e-reader also cannot, but it already has §12 saying so. */
+    const skip = (sec) => sec.classList.contains('titlepage') || sec.classList.contains('print-only')
     document.querySelectorAll('main > section').forEach((sec, i) => {
+      if (skip(sec)) return
       const clone = strip(sec.cloneNode(true))
       const heading = clone.querySelector('h1, h2')
       out.push({

@@ -827,6 +827,7 @@ export function SchemaTable({
               <Catalogue e={e} notes={notes} />
             </div>
           ))}
+        <CatalogueKey />
       </>
     )
   }
@@ -845,7 +846,12 @@ export function SchemaTable({
     )
   }
 
-  return <Catalogue e={e} notes={notes} />
+  return (
+    <>
+      <Catalogue e={e} notes={notes} />
+      <CatalogueKey />
+    </>
+  )
 }
 
 function Catalogue({ e, notes }: { e: EntityDef; notes: boolean }) {
@@ -951,12 +957,25 @@ function Catalogue({ e, notes }: { e: EntityDef; notes: boolean }) {
           </tbody>
         </table>
       </div>
-      <p className="meta" style={{ marginTop: '0.5rem' }}>
-        Underlined = primary key · → = foreign key in the reimplementation, a relation property in
-        the vault · cap = the limit the Notion API enforces on that type · every name in the two
-        middle columns was read from <span className="mono">src/notion/schema.ts</span> at commit{' '}
-        {schema.source.commit}.
-      </p>
     </>
+  )
+}
+
+/**
+ * The key to the catalogue.
+ *
+ * It used to render inside `Catalogue`, which meant it repeated under all five
+ * databases — five identical paragraphs in one figure, and on paper five
+ * identical paragraphs across four pages. A legend is a property of the table
+ * it explains, and there is one table here with five parts.
+ */
+function CatalogueKey() {
+  return (
+    <p className="meta" style={{ marginTop: '0.6rem' }}>
+      Underlined = primary key · → = foreign key in the reimplementation, a relation property in
+      the vault · cap = the limit the Notion API enforces on that type · every name in the two
+      middle columns was read from <span className="mono">src/notion/schema.ts</span> at commit{' '}
+      {schema.source.commit}.
+    </p>
   )
 }

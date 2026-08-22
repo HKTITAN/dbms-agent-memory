@@ -97,6 +97,24 @@ function Cite({ n: id }: { n: number }) {
   return <a href={`#ref-${id}`} className="cite" aria-label={`Reference ${id}`}>[{id}]</a>
 }
 
+/**
+ * A figure number, and nothing else.
+ *
+ * The diagram and explorer components each render their own `<Figure>` — title,
+ * sub-line, caption. Wrapping them in a second one printed the title twice and
+ * stacked three captions under one drawing. The number is the only thing the
+ * page can supply that the component cannot, because it depends on position,
+ * so the number is the only thing this supplies.
+ */
+function Plate({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="plate">
+      <p className="plate-n">{label}</p>
+      {children}
+    </div>
+  )
+}
+
 /** A quotation from Lore's own source. The paper leans on these, so they are marked. */
 function Src({ file, children }: { file: string; children: React.ReactNode }) {
   return (
@@ -123,8 +141,86 @@ export default function Paper() {
       <Sidebar entries={TOC} downloads={DOWNLOADS} />
 
       <main id="main">
+        {/* ----------------------------------------------------- front matter
+            Print only. A paper opens on a title page carrying the title, the
+            authors, the abstract and the provenance of what was reviewed —
+            not on a download list and a QR code, which is what the masthead
+            below is for and what made the PDF read as a website export. */}
+        <section className="titlepage">
+          <p className="tp-kicker">Review paper · Database Management Systems</p>
+          <h1>Agent memory as a database problem</h1>
+          <p className="tp-sub">
+            A review of Notion&rsquo;s Lore, and what happens when its schema is given a database
+            to run on.
+          </p>
+
+          <p className="tp-authors">
+            {AUTHORS.lead} &nbsp;·&nbsp; {AUTHORS.co.join(' · ')}
+          </p>
+          <p className="tp-affil">
+            BTech, Computer Science and Engineering &nbsp;·&nbsp; submitted to {AUTHORS.submittedTo}
+          </p>
+
+          <p className="tp-label">Abstract</p>
+          <div className="tp-abstract">
+            <p>
+              Lore is Notion&rsquo;s open-source memory system for AI agents: a persistent, shared
+              vault that keeps context alive across a cleared session, a new branch or a handover,
+              by storing that memory as rows in five Notion databases. The design is deliberate —
+              the memory is human-readable, editable by hand, and inherits the permissions of a
+              tool the team already pays for, and there is no database to run.
+            </p>
+            <p>
+              This paper reviews that design as a database design. We reconstruct Lore&rsquo;s
+              schema from its source — {n(totalProperties)} properties across five databases, read
+              from <span className="mono">{s.schemaFile}</span> at commit{' '}
+              <span className="mono">{s.commit}</span> — and analyse it with the entity-relationship
+              model, normal forms, functional dependencies, and the temporal-database distinction
+              between valid time and transaction time. We then reimplement the same schema on
+              SQLite and PostgreSQL, generate a vault of {n(vault.memories)} memories and{' '}
+              {n(vault.facts)} facts whose ground truth is definitional rather than judged, and put
+              a workload of {n(vault.questions)} questions in {classes.length} classes through three
+              stores: an emulator restricted to the documented Notion Data API, and the two engines.
+            </p>
+            <p>
+              The vault is not wrong. It answers {pct(capture.byArm.notion.exact, 1)} of the
+              workload exactly, the same as both engines. What separates them is cost and refusal:{' '}
+              {n(totalNotionRoundTrips)} requests against {n(totalSqlStatements)} SQL statements,
+              a single join at {n(provenance.notionRoundTrips, 0)} requests, a complete body search
+              at {duration(body.notionFloorSeconds)}, {pct(conc.notion.lostUpdateRate)} of updates
+              lost by eight concurrent writers, and a temporal exclusion constraint PostgreSQL
+              declines even to add because {n(temporal.trueConflictKeys)} subject-predicate pairs
+              already contradict each other. We argue these are the visible price of a legible
+              trade rather than defects, and put numbers on it.
+            </p>
+          </div>
+
+          <p className="tp-label">Keywords</p>
+          <p className="tp-keywords">
+            Agent memory · entity-relationship model · normalisation · Boyce-Codd normal form ·
+            functional dependency · temporal databases · valid time · transaction time · exclusion
+            constraints · referential integrity · lost update · entity resolution · provenance ·
+            full-text retrieval · Model Context Protocol · Notion · PostgreSQL · SQLite
+          </p>
+
+          <div className="tp-colophon">
+            <div>
+              <p style={{ margin: 0 }}>
+                Subject: {s.repo.replace('https://', '')} at {s.commit} ({s.version}, {s.license}),
+                read {s.commitDate}.
+              </p>
+              <p style={{ margin: 0 }}>
+                Measured {capturedOn} on {capture.machine.cpu}. Every figure in this paper is read
+                from <span className="mono">data/capture.json</span>; no number is typed by hand.
+              </p>
+              <p style={{ margin: 0 }}>{QR_URL}</p>
+            </div>
+            <QrCode size={84} />
+          </div>
+        </section>
+
         {/* ------------------------------------------------------- masthead */}
-        <header className="masthead">
+        <header className="masthead no-print">
           <p className="label">Review paper · Database Management Systems</p>
           <h1 className="title">Agent memory as a database problem</h1>
           <p className="lede">
@@ -379,13 +475,9 @@ export default function Paper() {
             </p>
           </div>
 
-          <Figure
-            title="Figure 1 — Lore's surfaces"
-            caption="Three entry points, one set of services, one substrate. The hooks are what make the memory ambient rather than requested: wake-up fires before the assistant's first response, autosave after its last."
-            full
-          >
+          <Plate label="Figure 1">
             <SurfaceDiagram />
-          </Figure>
+          </Plate>
 
           <div className="prose">
             <p>
@@ -539,13 +631,9 @@ export default function Paper() {
             </p>
           </div>
 
-          <Figure
-            title="Figure 3 — The normalisation walk"
-            caption="Rungs marked as shipping are violations still present in Lore. They are the argument of this section; the rest is the ladder that gets us to them."
-            full
-          >
+          <Plate label="Figure 3">
             <NormalizationLadder />
-          </Figure>
+          </Plate>
 
           <h3 className="heading-20">5.1 A repeating group in one cell</h3>
           <div className="prose">
@@ -694,13 +782,9 @@ export default function Paper() {
             </p>
           </div>
 
-          <Figure
-            title="Figure 4 — Two axes for one fact"
-            caption="Valid time above, transaction time below, the lag between them shaded. An audit that asks the wrong axis gets a defensible-looking wrong answer."
-            full
-          >
+          <Plate label="Figure 4">
             <BitemporalDiagram />
-          </Figure>
+          </Plate>
 
           <Figure title="Table 6 — Where the axes disagree" full>
             <BitemporalTable />
@@ -900,13 +984,9 @@ export default function Paper() {
             </p>
           </div>
 
-          <Figure
-            title="Figure 6 — One join, two shapes"
-            caption="The comb on the left is one request per candidate fact. The bar on the right is one statement. Both return the same set."
-            full
-          >
+          <Plate label="Figure 6">
             <RoundTripDiagram />
-          </Figure>
+          </Plate>
 
           <div className="prose">
             <p>
@@ -954,13 +1034,9 @@ export default function Paper() {
           <Figure title="Table 13 — Invariants and what enforces them" full>
             <InvariantTable />
           </Figure>
-          <Figure
-            title="Figure 7 — What the constraint would have been"
-            caption="For each invariant: the one line of DDL that would have declared it, what actually upholds it, and what breaks it."
-            full
-          >
+          <Plate label="Figure 7">
             <ConstraintDiagram />
-          </Figure>
+          </Plate>
 
           <h3 className="heading-20">9.1 Concurrent upsert</h3>
           <div className="prose">
@@ -1285,6 +1361,22 @@ export default function Paper() {
         </section>
 
         {/* -------------------------------------------------------- explore */}
+        {/* The explorers are inert on paper, so the printed edition says where
+            they are instead of printing twelve pages of their default state. */}
+        <section className="section print-only">
+          <h2 className="heading-24">12. Explore the evidence</h2>
+          <div className="prose">
+            <p>
+              Three interactive explorers accompany the web edition: the cost of any one question
+              class, the wake-up cost against vault size, and the upsert race at a chosen number of
+              writers. They compute from the same dataset as every figure above, and they are
+              omitted here because a control that cannot be operated is not evidence. They are at{' '}
+              <span className="mono">{QR_URL}</span>, and the dataset behind them is at{' '}
+              <span className="mono">{QR_URL}/capture.json</span>.
+            </p>
+          </div>
+        </section>
+
         <section id="explore" className="section">
           <h2 className="heading-24">12. Explore the evidence</h2>
           <div className="prose">
@@ -1294,15 +1386,15 @@ export default function Paper() {
             </p>
           </div>
 
-          <Figure title="Explorer 1 — What a question costs" full>
+          <Plate label="Explorer 1">
             <QueryCostExplorer />
-          </Figure>
-          <Figure title="Explorer 2 — Wake-up cost against vault size" full>
+          </Plate>
+          <Plate label="Explorer 2">
             <VaultSizeExplorer />
-          </Figure>
-          <Figure title="Explorer 3 — The upsert race" full>
+          </Plate>
+          <Plate label="Explorer 3">
             <WriterRaceExplorer />
-          </Figure>
+          </Plate>
         </section>
 
         {/* ------------------------------------------------------ discussion */}
