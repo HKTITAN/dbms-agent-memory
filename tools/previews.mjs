@@ -20,7 +20,7 @@ import { setTimeout as sleep } from 'node:timers/promises'
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const WEB = join(ROOT, 'web')
 const PUB = join(WEB, 'public')
-const EPUB = join(ROOT, 'paper', 'persistent-memory-architecture-in-agents.epub')
+const EPUB = join(ROOT, 'paper', 'agent-memory-as-a-database-problem.epub')
 const PORT = 3125
 const BASE = `http://127.0.0.1:${PORT}`
 

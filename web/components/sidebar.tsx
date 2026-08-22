@@ -58,7 +58,9 @@ function DownloadLink({ item }: { item: Download }) {
         onFocus={show}
         onBlur={hide}
         onClick={() => play('done')}
-        style={{ width: '100%', justifyContent: 'flex-start', minHeight: 36, fontSize: '0.8125rem' }}
+        /* 44 rather than 36: an inline style beats the stylesheet, so the rail's
+         controls were the only ones in the paper under the 44px target floor. */
+      style={{ width: '100%', justifyContent: 'flex-start', minHeight: 44, fontSize: '0.8125rem' }}
       >
         <Icon name="download" size={15} />
         {item.label}
@@ -154,7 +156,9 @@ function SoundSwitch() {
         // Confirm the new state in the medium being switched.
         if (next) play('toggle')
       }}
-      style={{ width: '100%', justifyContent: 'flex-start', minHeight: 36, fontSize: '0.8125rem' }}
+      /* 44 rather than 36: an inline style beats the stylesheet, so the rail's
+         controls were the only ones in the paper under the 44px target floor. */
+      style={{ width: '100%', justifyContent: 'flex-start', minHeight: 44, fontSize: '0.8125rem' }}
     >
       <Icon name={on ? 'soundOn' : 'soundOff'} size={15} />
       Sound

@@ -28,19 +28,6 @@ const DASH = '—'
 
 /* Present in the accessibility tree, absent from layout. Used for the fallback
  * tables, which must not be reachable by eye or by the print stylesheet. */
-const SR: CSSProperties = {
-  position: 'absolute',
-  width: 1,
-  height: 1,
-  margin: -1,
-  padding: 0,
-  border: 0,
-  overflow: 'hidden',
-  clip: 'rect(0 0 0 0)',
-  clipPath: 'inset(50%)',
-  whiteSpace: 'nowrap',
-}
-
 /* Ordered by luminance, not by hue: the series stay separable in greyscale and
  * the accent sits last so it is spent on the arm a figure is arguing about. */
 const RAMP = ['var(--data-3)', 'var(--data-2)', 'var(--data-1)', 'var(--data-4)']
@@ -379,7 +366,7 @@ export function BarChart({
         ))}
       </div>
 
-      <table style={SR}>
+      <table className="sr-only">
         <caption>{tableLabel}{unit ? ` (${unit})` : ''} — the values drawn above.</caption>
         <thead>
           <tr>
@@ -504,7 +491,7 @@ export function GroupedBars({
         ))}
       </div>
 
-      <table style={SR}>
+      <table className="sr-only">
         <caption>{tableLabel}{unit ? ` (${unit})` : ''} — the values drawn above.</caption>
         <thead>
           <tr>
@@ -755,7 +742,7 @@ export function ScalingChart({
         </svg>
       </div>
 
-      <table style={SR}>
+      <table className="sr-only">
         <caption>{yLabel} against {xLabel}, per engine — the values drawn above.</caption>
         <thead>
           <tr>
@@ -993,7 +980,7 @@ export function ParetoChart({
         </p>
       ) : null}
 
-      <table style={SR}>
+      <table className="sr-only">
         <caption>{yLabel} and {xLabel} at each retrieval budget k — the values drawn above.</caption>
         <thead>
           <tr>
@@ -1077,7 +1064,7 @@ export function HeatMatrix({
           <thead>
             <tr>
               <th scope="col">
-                <span style={SR}>Row</span>
+                <span className="sr-only">Row</span>
               </th>
               {cols.map((c) => (
                 <th scope="col" className="n" key={c.id}>

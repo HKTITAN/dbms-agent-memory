@@ -34,7 +34,10 @@
   --text: #16150f;
   --text-secondary: rgba(22, 21, 15, 0.70);
   --text-tertiary: rgba(22, 21, 15, 0.62);
-  --text-faint: rgba(22, 21, 15, 0.54);
+  /* 0.54 alpha measured 3.91:1 on the canvas — under the 4.5:1 floor for the
+     12-13px labels that use it. 0.66 clears it while keeping the step below
+     --text-tertiary visible. */
+  --text-faint: rgba(22, 21, 15, 0.66);
 
   --border: rgba(22, 21, 15, 0.13);
   --border-strong: rgba(22, 21, 15, 0.26);
@@ -316,14 +319,21 @@ main { overflow-x: clip; }
    its own descendants — so an overlay that would have run off the page is
    trimmed at the article edge instead of dragging the viewport with it. */
 
+/* The masthead is a title block, not a toolbar.
+   It was a `space-between` flex row when the only things in it were a wordmark
+   and a toggle. It now carries a label, a title, a lede, a metadata block and
+   the artifact list, and a flex row turns those five into five columns — which
+   is exactly what it did: a 60-character title set in a 200px column beside a
+   download list wrapping one word per line. Stack them. */
 .masthead {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1.5rem;
-  padding-block: 1.125rem;
+  display: grid;
+  gap: 0;
+  padding-block: clamp(1.75rem, 4vw, 3rem) 1.5rem;
   border-bottom: var(--rule);
 }
+.masthead > .label { margin-bottom: 0.75rem; }
+.masthead > .title { margin: 0 0 0.75rem; }
+.masthead > .lede { margin: 0; max-width: 34rem; }
 
 .section {
   padding-block: clamp(2.75rem, 6vw, 4.5rem);
@@ -1176,3 +1186,210 @@ li:target { background: var(--accent-quiet); border-radius: 3px; }
 }
 
 .print-only { display: none; }
+
+/* ============================================================== downloads
+   The artifact list on the masthead. Every output this repository produces,
+   reachable without cloning it: the paper in two formats, the talk in two, and
+   the dataset every number in all four is read from.
+
+   Deliberately a list and not a row of buttons. Five buttons in a line is a
+   toolbar, and a toolbar says "pick one"; a list says "these all exist", which
+   is the true statement. */
+
+.downloads {
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: var(--rule);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 1.5rem 2rem;
+  align-items: start;
+}
+
+.download-list {
+  list-style: none;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.125rem;
+  max-width: 32rem;
+}
+
+/* Name and format sit on one baseline with the format pushed to the right, so
+   the five rows read as a column of names with a column of formats beside them
+   rather than as five sentences of different lengths. */
+.download {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1.5rem;
+  min-height: 44px;
+  padding: 0.55rem 0.75rem;
+  margin-left: -0.75rem;
+  border-radius: var(--radius-sm);
+  text-decoration: none;
+  color: var(--text);
+  transition: background-color var(--dur-hover) var(--ease-out);
+}
+
+.download:hover { background: var(--bg-sunken); }
+.download:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  background: var(--bg-sunken);
+}
+
+.download-name { font-weight: 500; }
+
+.download-meta {
+  font-size: 0.8125rem;
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The name and the format want to read as one line on a wide row and as two on
+   a narrow one, without the meta wrapping mid-token. */
+@media (max-width: 30rem) {
+  .download { flex-direction: column; gap: 0.125rem; }
+}
+
+.download-qr { display: grid; gap: 0.5rem; justify-items: center; }
+.download-qr .meta { margin: 0; font-size: 0.75rem; }
+
+@media (max-width: 44rem) {
+  .downloads { grid-template-columns: minmax(0, 1fr); }
+  .download-qr { justify-items: start; }
+}
+
+/* In print the list is still useful — the URLs resolve via the global
+   `a[href]::after` rule — but the QR code is the thing that actually works on
+   paper, so it stays. */
+@media print {
+  .downloads { break-inside: avoid; }
+  .download { min-height: 0; padding: 0.15rem 0; margin-left: 0; }
+  .download:hover { background: none; }
+}
+
+
+/* =========================================================== target sizes
+   Apple's 44x44pt floor, applied to every control that is not a link inside a
+   sentence. WCAG 2.5.8 exempts inline targets in running prose — padding a
+   citation to 44px would break the line it sits in — so `.cite` is excluded on
+   purpose and everything else is not. */
+
+.seg button,
+.segmented button,
+.rail-toggle,
+.rail-link,
+.btn {
+  min-height: 44px;
+}
+
+/* The segmented strips carry ten class names on one row, so the height comes
+   from padding rather than a fixed box: the label still centres optically and
+   the row still wraps on a phone. */
+.seg button,
+.segmented button {
+  padding-block: 0.6rem;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* A range input's default thumb is about 16px tall inside a 26px track, which
+   is a 26px target. The track stays visually slim; the box around it does not. */
+input[type="range"] {
+  min-height: 44px;
+  cursor: pointer;
+}
+
+/* References carry full URLs, and a URL has no break opportunities of its own.
+   Without this a single link sets the minimum width of the whole document and
+   the page scrolls sideways on a phone. */
+.cite,
+.prose a[href] {
+  overflow-wrap: anywhere;
+}
+
+@media print {
+  .seg button,
+  .segmented button,
+  .rail-toggle,
+  .rail-link,
+  .btn,
+  input[type="range"] { min-height: 0; }
+}
+
+/* ========================================================= visually hidden
+   Present in the accessibility tree, absent from layout.
+
+   The usual inline recipe — `position:absolute; width:1px; height:1px;
+   overflow:hidden; clip-path:inset(50%)` — has one failure mode, and this paper
+   walked straight into it: applied to a `<table>` it does not hide anything's
+   width. `overflow` has no effect on `display: table`, and a table sizes to its
+   content no matter what `width` says, so each of the fallback tables behind the
+   charts and diagrams stayed over a thousand pixels wide. They were invisible,
+   and they still made the whole document scroll sideways — the worst kind of
+   layout bug, because there is nothing at the end of the scroll to explain it.
+
+   `display: block` is the fix: it takes the element out of the table formatting
+   context so `width` and `overflow` mean what they say. The rows inside keep
+   their table semantics for assistive technology, which is the only reason the
+   element exists. */
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  display: block;
+}
+
+/* Never print a duplicate of a figure the reader can already see. */
+@media print {
+  .sr-only { display: none; }
+}
+
+/* ========================================================= interaction states
+   The state sweep found three gaps, all of them in chrome added late.
+
+   A dash in that matrix is a defect, not a preference: an element with a hover
+   and no pressed state feels dead under the finger, and one with a hover and no
+   focus ring is unreachable by keyboard without guessing. */
+
+/* The artifact list responds to the press, not only to the hover. 0.99 rather
+   than the 0.97 the buttons use, because a full-width row travelling as far as a
+   small button reads as the row buckling. */
+.download:active { scale: 0.99; }
+
+/* Control chrome is chrome. Dragging a selection across the contents rail and
+   painting Contents / PDF / ePub / Sound blue reads as the page breaking, and
+   nobody has ever wanted to copy those four words. The paper itself stays
+   selectable — a reader quoting a figure must be able to take it with them. */
+.reading-rail,
+.rail-toggle,
+.rail-heading,
+.segmented,
+.seg {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* A hairline ladder, so the page has three greys and not nine. The faintest is
+   for rules inside a figure, the middle one is the workhorse, and the strong one
+   is for a line that has to be seen. On a high-DPI display they render at half a
+   pixel, which is what stops a table of forty rows reading as corduroy. */
+:root {
+  --hairline-faint: var(--border-faint);
+  --hairline: var(--border);
+  --hairline-strong: var(--border-strong);
+  --hairline-width: 1px;
+}
+@media (min-resolution: 192dpi) {
+  :root { --hairline-width: 0.5px; }
+}

@@ -1,9 +1,9 @@
-# Persistent Memory Architecture in Agents Using DBMS
+# Agent memory as a database problem
 
-A review paper on how AI agents should store what they remember, measured across
-**ten storage architectures** — file stores, **SQLite 3.53**, and **PostgreSQL 18.3**
-with `pgvector` and GIN — over one corpus of agent memories with non-circular
-ground truth.
+A review paper on **[Notion's Lore](https://github.com/makenotion/lore)** — the open-source
+memory system that gives AI assistants a persistent, shared vault backed by five Notion
+databases — read as a *database design*, and then reimplemented on **SQLite** and
+**PostgreSQL** to measure what the substrate can and cannot do.
 
 BTech CSE coursework, DBMS.
 
@@ -11,32 +11,51 @@ BTech CSE coursework, DBMS.
 **Co-authors** Kush Ahuja, Madhav Bassi, Kushagra Agrawal
 **Submitted to** Dr. Poonam Sangwan
 
-Read online at **[dbms-memory.khe.money](https://dbms-memory.khe.money)** · download the
-[PDF](paper/persistent-memory-architecture-in-agents.pdf) or
-[ePub](paper/persistent-memory-architecture-in-agents.epub).
+Read online at **[dbms-memory.khe.money](https://dbms-memory.khe.money)** · the
+[paper](paper/agent-memory-as-a-database-problem.pdf) ·
+the [ePub](paper/agent-memory-as-a-database-problem.epub) ·
+the [talk](deck/agent-memory-as-a-database-problem-slides.pdf) ·
+the [dataset](data/capture.json).
 
 ---
+
+## The finding in one paragraph
+
+Lore's vault is **correct**. It answers 100% of a 361-question workload exactly — the right
+set, nothing added, nothing missing — the same as both relational engines. What separates
+them is what the answer costs and what the store will refuse. Answering that workload takes
+the Notion Data API **522 686 HTTP requests** against **361 SQL statements**; a single join
+from a claim to the memory that supports it costs 1 138 requests; searching what memories
+actually *say* costs 11 892, because the search endpoint matches titles and a memory's text
+is page blocks. Eight agents upserting the same topic key lose **87.1%** of their updates,
+because the read-then-write protocol has no conditional write to close. And PostgreSQL
+declines even to *add* a temporal exclusion constraint to the vault as generated, because
+70 subject-predicate pairs already assert two different objects over overlapping time.
+
+None of this makes Lore a bad system. It makes the trade legible: every guarantee a database
+declares, exchanged for human-legible memory, zero infrastructure and inherited permissions.
 
 ## What this repository contains
 
 | Path | What it is |
 |---|---|
-| `web/` | Next.js 16 app — the paper, the ER diagram, charts and interactive explorers |
-| `paper/` | The generated PDF and ePub editions |
-| `engines/schema.mjs` | The logical model. The ER diagram, the DDL and the normalization argument all read this one file |
-| `engines/contract.mjs` | The engine interface, the retrieval metrics, and RRF fusion |
-| `engines/file.mjs` | Three file baselines: JSONL scan, flat vector index, vector + metadata post-filter |
-| `engines/sqlite.mjs` | Three SQLite arms: B-tree, FTS5 inverted index, FTS5 + vectors |
-| `engines/postgres.mjs` | Four Postgres arms: B-tree, GIN, HNSW, and GIN+HNSW fused by RRF **in SQL** |
-| `tools/corpus.mjs` | The corpus generator — builds facts first, then renders memories from them |
-| `tools/embed.mjs` | Local embedding cache (MiniLM-L6-v2, 384 d), shared by every arm |
+| `engines/schema.mjs` | **The logical model, declared once.** Lore's five databases restated as a relational schema, transcribed from `src/notion/schema.ts` at commit `95c3558`. The ER diagram, the DDL both engines execute, the emulator's property catalogue and the normalisation argument all read this one file. |
+| `engines/notion.mjs` | An emulator for the Notion Data API, restricted to operations the public reference documents. Every restriction carries the page it comes from. |
+| `engines/sqlite.mjs` | The same schema as real tables through `node:sqlite`, with indexes, foreign keys and an FTS5 index over bodies. |
+| `engines/postgres.mjs` | The same again through PGlite, adding range-typed validity, a GiST exclusion constraint and GIN over `to_tsvector`. |
+| `engines/contract.mjs` | The ten question classes, the oracle that answers them in plain JavaScript, and the cost model. |
+| `tools/vault.mjs` | The vault generator. Builds a world first, reads facts off it, then renders memories from the facts — so ground truth is definitional, not judged. |
 | `tools/capture.mjs` | The measurement harness. Produces the entire dataset. |
-| `tools/exp/` | Retrieval quality, dense-failure forensics, crash trials, lost updates, anomaly probe |
-| `data/capture.json` | The dataset every figure and number in the paper reads from |
+| `tools/exp/` | Integrity, cost and full-text experiments. |
+| `tools/deck.mjs` | Generates the talk from the same dataset. |
+| `tools/audit.mjs` | The interface audit: contrast, target size, overflow and accessible names, measured in a real viewport at three widths. |
+| `data/capture.json` | The dataset every figure and every number in the paper, the deck and the site reads from. |
+| `web/` | Next.js 16 app — the paper, the ER diagram, the figures and three interactive explorers. |
+| `deck/` | The talk. `.design` is its visual contract. |
 
-No number in the paper is transcribed by hand. Prose, tables and charts read the same
-JSON, so the text and the evidence cannot drift apart. The PDF and ePub render from the
-same page as the web edition, so the three editions cannot drift either.
+**No number in any of the three editions is typed by hand.** Prose, tables, charts and slides
+all read `data/capture.json`, so the text and the evidence cannot drift apart. The PDF and the
+ePub render from the same page as the web edition, so the editions cannot drift either.
 
 ## Reproducing everything
 
@@ -48,69 +67,75 @@ git clone https://github.com/HKTITAN/dbms-agent-memory && cd dbms-agent-memory
 npm install && npm run paper
 ```
 
-`npm run paper` runs corpus → embed → capture → QR → build → PDF → ePub → previews.
+`npm run paper` runs vault → capture → QR → build → PDF → ePub → deck → deck PDF → previews.
 
-There is **no database server to install and no API key to set**. SQLite comes from
-Node's built-in `node:sqlite`; PostgreSQL 18.3 runs through [PGlite](https://pglite.dev/)
-as WebAssembly; the embedding model runs locally through `@huggingface/transformers`.
-The first `npm run embed` downloads the model once (~90 MB) and caches 35,148 vectors.
+There is **no database server to install and no API key to set.** SQLite comes from Node's
+built-in `node:sqlite`; PostgreSQL runs through [PGlite](https://pglite.dev/) as WebAssembly.
+The vault is deterministic in its seed, so a rerun reproduces every number.
+
+```bash
+npm run vault && npm run capture   # just the measurement
+npm run smoke                      # check every arm still agrees with the oracle
+node tools/audit.mjs http://127.0.0.1:3200   # the interface audit
+```
 
 ## Method in one paragraph
 
-Relevance labels are worthless if you pick them by looking at results, so the corpus is
-built backwards. A world of services, incidents, config records and decisions produces
-**facts** — subject-predicate-object triples. Each fact is then *rendered* into several
-natural-language **memories** an agent might plausibly have written, scattered across
-sessions. The memories relevant to a query about a fact are therefore exactly the
-memories rendered from that fact, intersected with the query's structural predicate:
-definitional, not judged. Distractors (mentioning an identifier while asserting nothing)
-and supersessions (revising a fact after the fact) are added deliberately, because
-without them a lexical index scores perfectly by accident and currency is untestable.
+Relevance labels chosen by looking at what a store returned are worthless, so the corpus is
+built backwards. A world of services, people, teams, incidents and decisions produces **facts**
+— subject-predicate-object triples with validity intervals that open and close over 540
+simulated days. Each fact is then *rendered* into several natural-language **memories** an
+agent might plausibly have written, scattered across sessions and authors. Six defects are
+injected on purpose — duplicate entities, unclosed intervals, stale subject titles, dangling
+provenance, colliding aliases, distractors — because each is a state Lore's substrate cannot
+refuse, and a clean vault would prove nothing. The ten question classes are read off Lore's
+own commands and hooks, and each is annotated with the minimum relational algebra it needs.
 
-Queries are partitioned into **eight classes** — lexical, semantic, temporal, provenance,
-currency, aggregate, negation, hybrid — chosen so that each stresses a different access
-method. The column that carries the paper is whether a class can be answered by top-*k*
-similarity alone.
+**On the emulator.** We hold no Notion workspace and issue no requests, so wall-clock through
+the Notion arm would measure our own JavaScript. What we report instead are counts — requests,
+bytes, and rows the client had to examine — which are fixed by the API's shape rather than by
+anyone's network. The documented average of three requests per second then converts a request
+count into a floor on wall-clock. §14 of the paper states what this cannot capture, including
+the largest limitation: Lore in practice delegates ranking to Notion's own search, including an
+internal endpoint that is undocumented and tier-gated, which we could not model.
 
 ## Key findings
 
-1. **Most agent recall is not a similarity problem.** 61.7% of the query workload needs a
-   predicate, a join or an aggregate. No top-*k* similarity search can express those, and
-   the failure is silent — ten plausible memories come back with no signal that the
-   question asked was not the question answered.
-2. **Dense retrieval is near-random on identifiers.** On queries naming a record by its
-   key, the pure vector arm scores ~0.00 nDCG against ~0.79 for BM25. In every probe the
-   embedding's top hit was a distractor sharing the query's *grammatical shape*
-   ("checked X, unrelated"), while the memory that answered it sat at median rank 271
-   of 8,282.
-3. **The same vector index inside a DBMS recovers most of the loss** — not because
-   retrieval improved, but because a query language existed to state the constraint.
-   `pg-hnsw` scores 1.000 on provenance, where the planner uses a B-tree and never
-   consults the vector index at all.
-4. **Hybrid retrieval is not uniformly better.** On classes a predicate already settles,
-   rank fusion re-ranks *away* from the correct answer: 1.000 → 0.63 on currency.
-5. **Whole-document rewrite loses everything, not the last record.** A crash inside the
-   rewrite window left the entire store unparseable. Append-only JSONL, by contrast,
-   survived every trial — an honest result that narrows the usual blanket claim.
-6. **Eight concurrent writers cost the file store 87.5% of its updates**; both DBMS arms
-   lost none. Textbook lost-update anomaly, textbook cause.
-7. **Denormalization shows up as self-contradiction.** A fact is restated 3.7 times on
-   average (max 15). A correction applied through top-10 retrieval leaves 64.5% of the
-   restatements asserting the old value — and the agent will retrieve and believe them.
-8. **Embeddings dominate storage.** One 384-d float32 vector is 1,536 bytes, larger than
-   the ~25-token memory it describes. The vector arms cost ~8× the bytes per memory of an
-   inverted index, and buy quality on one class out of eight.
+1. **Correctness is not the differentiator.** All three stores answer 100% of the workload
+   exactly. A critique that expected wrong answers would stop here and be wrong to.
+2. **Cost is.** 522 686 requests against 361 statements — 48.4 hours of rate-limit floor for a
+   workload SQL finishes in one pass.
+3. **A join costs 1 138 requests.** There is no way to filter Facts by a property of the page
+   its relation points at, so the client fetches candidates and joins them itself.
+4. **Searching what a memory says costs 66 minutes** at this vault's size, and 110 hours at a
+   hundred times it. The search endpoint matches titles; the text is blocks.
+5. **Eight concurrent writers lose 87.1% of their updates.** Lore's own source says why:
+   *"Notion provides no per-key uniqueness enforcement."* A unique index loses none.
+6. **The constraint refuses to be added.** PostgreSQL will not certify the vault as generated;
+   192 of the writes that built it would have been rejected at the point of writing.
+7. **Three normalisation violations ship**, each for a substrate reason that can be named: a
+   repeating group in one cell, an expression index materialised as two columns, and a
+   Boyce-Codd violation that leaves 105 facts whose title and whose relation disagree about
+   their own subject.
+8. **Two inverted indexes over the same text give different answers.** `phraseto_tsquery`
+   parses *"timed out"* as the single lexeme `'time'` and returns 669 rows; FTS5 returns 0.
+   Neither is wrong, and nothing in either answer says which position was taken.
 
 ## Design
 
-Light theme only, matched to the sibling paper on compiler phases. Monochrome canvas with
-a single warm accent, typography before surfaces, honest chart encodings with zero
-baselines, tabular numerals, WCAG 2.2 AA contrast in both the screen and print palettes,
-`transform`/`opacity`-only motion under 300 ms with a reduced-motion path.
+The **paper** is light-theme, print-first, academic: monochrome canvas with a single warm
+accent, typography before surfaces, honest chart encodings with zero baselines, tabular
+numerals, and WCAG 2.2 AA contrast verified arithmetically rather than by eye.
 
-The entity-relationship diagram is drawn in Chen notation and generated from
-`engines/schema.mjs` — the same declaration the loaders execute. Every box is a table
-that was created; every dashed edge is a foreign key that was enforced during measurement.
+The **talk** uses Duolingo's design language, re-derived rather than copied — the rules from
+[design.duolingo.com](https://design.duolingo.com/) and from Duolingo's shipped production
+CSS, applied to material Duolingo has never rendered. Its contract is `deck/.design`. The one
+rule that carries it: *depth is a solid darker edge, never a blur.* Nothing reproduces
+Duolingo's marks, its bespoke typefaces, or its characters; the three creatures are original,
+built from the three primitives its shape language allows. Nunito is used because Duolingo's
+own typography page names it as the substitute for its unlicensable faces.
+
+Both are checked by `tools/audit.mjs` at 1280, 768 and 375 px.
 
 ## Deploying
 
@@ -118,10 +143,12 @@ that was created; every dashed edge is a foreign key that was enforced during me
 cd web && npx vercel deploy --prod
 ```
 
-Static output, no runtime dependencies — the dataset is a build-time JSON artifact
-inlined into the render.
+Static output, no runtime dependencies — the dataset is a build-time artifact inlined into the
+render.
 
-## License
+## Licence
 
-Coursework. PostgreSQL, SQLite, pgvector, PGlite and MiniLM belong to their respective
-projects and are used under their own licences.
+Coursework. **Lore is © Notion Labs, Inc., used under the MIT licence**; this paper reviews it
+and is not affiliated with Notion. PostgreSQL, SQLite, PGlite and Nunito belong to their
+respective projects and are used under their own licences. Duolingo's marks and typefaces are
+its own and are not reproduced here.

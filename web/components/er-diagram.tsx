@@ -1,109 +1,254 @@
-'use client'
-
-import { useId, useState } from 'react'
-import type { SchemaEntity, SchemaRelationship } from '@/lib/types'
-
-/**
- * The entity-relationship model, drawn from `engines/schema.mjs`.
+/* The entity-relationship model of Lore's vault, in Chen notation.
  *
- * The diagram is not an illustration of the schema — it is generated from the
- * same declaration the loaders execute. Every box is a table that was created,
- * every edge a foreign key that was enforced. If the measurement ran, the
- * diagram is accurate.
+ * This is not an illustration of the schema. Every rectangle is here because an
+ * entity exists in `engines/schema.mjs`, every diamond because a relationship
+ * does, and both arrive through `capture.schema` — the same declaration the
+ * SQLite and PostgreSQL loaders execute. If a box is drawn, a table was created;
+ * if an edge is drawn, a foreign key was enforced during measurement. The only
+ * thing this file supplies is where each of them sits on the page, and anything
+ * the declaration adds that this file has no place for is named in the footer
+ * rather than silently dropped.
  *
- * Chen notation, and the notation is carrying real information here:
+ * WHY CHEN AND NOT CROW'S FOOT. Crow's foot draws tables. Chen draws the model
+ * before it becomes tables, and the model is what this section argues about:
+ * which relationships are many-to-many before a bridge exists, which entities
+ * have no identity of their own, which specialisation is disjoint and total.
+ * Every symbol below is doing that work rather than decorating:
  *
- *   double rectangle   weak entity — no identity outside its parent
- *   double diamond     identifying relationship
- *   double line        total participation
- *   1 / N / M          cardinality, read at the end nearest the entity
- *   ISA + (d)          disjoint, total specialization
+ *   rectangle                    an entity — one of Lore's five Notion databases
+ *   double rectangle             a bridge relation: no identity apart from its
+ *                                parent, so it is a weak entity
+ *   rectangle around a diamond   the bridge that resolves an M:N relationship —
+ *                                a relationship that is also a relation
+ *   dashed, in the accent        exists ONLY in our reimplementation. There is
+ *                                exactly one of these, ENTITY_ALIAS, and it is
+ *                                the shape a normalised schema would have where
+ *                                the vault has a `, `-joined string in one cell
+ *   diamond                      a relationship
+ *   double diamond               identifying: the weak side is keyed by it
+ *   double line                  total participation on that end
+ *   1 / N / M                    cardinality, read at the end nearest the entity
+ *   ISA triangle, (d)            disjoint, total specialisation
  *
- * MEMORY is the weak entity, and that is the whole point: a memory is not a
- * free-floating document, it is turn n of session s. Vector stores model it as
- * the former and inherit every consequence of doing so.
+ * THREE THINGS THE DIAGRAM IS TRYING TO MAKE UNMISSABLE.
+ *
+ *  1. TEN SUBTYPES, ONE RELATION. MEMORY carries a ten-valued discriminator and
+ *     a property set that is meaningful for one kind at a time — `Task State`
+ *     for tasks, `Alternatives` for decisions. Drawing ten boxes would say the
+ *     schema has ten relations. It has one, so the ISA hangs a compact list off
+ *     the triangle instead and prints, beside each kind, how many properties
+ *     exist for that kind alone. That column of small numbers is the cost of the
+ *     single-table specialisation, stated in the notation rather than in prose.
+ *
+ *  2. FOUR EDGES WHERE A READER EXPECTS TWO. MEMORY reaches FACT twice —
+ *     `evidences` is the provenance edge (Source) and `retracts` is the
+ *     transaction-time edge (Invalidated By) — and ENTITY reaches FACT twice, as
+ *     subject and as object. They are separate relationships with separate
+ *     meanings, so they are separate diamonds. Collapsing them into one edge
+ *     labelled "related" is how a diagram starts lying.
+ *
+ *  3. THE RECURSIVE EDGE. `supersedes` leaves MEMORY and returns to it, and
+ *     Lore's own comment records that the relation is single_property, so the
+ *     reverse edge is never maintained. It is drawn as two lines to one diamond,
+ *     the shape Chen reserves for a self-relation, and labelled as such.
+ *
+ * LEGIBILITY. The drawing is 820 units wide and the smallest type on it is 11,
+ * which is the floor at which the figure stays readable at its narrowest laid-out
+ * width (740 CSS pixels, below which the container scrolls rather than shrinking
+ * the type further) and prints at roughly 6.8pt on A4 — the same size as the
+ * paper's own tables. Nothing is interactive, nothing is revealed by hover, and
+ * nothing is carried by colour alone: the synthetic relation is dashed AND
+ * labelled, the recursive relationship is looped AND labelled, and both the
+ * entities and the relationships are repeated in visually hidden tables so the
+ * whole model is available to a reader who cannot see the picture.
  */
 
+import type { CSSProperties, ReactNode } from 'react'
+import type { Attr, EntityDef, RelationshipDef } from '@/lib/types'
+import { schema, n } from '@/lib/data'
+import { Figure } from './charts'
+
+/* Present in the accessibility tree, absent from layout — the same pattern the
+ * chart primitives use for their fallback tables. */
 /* --------------------------------------------------------------- geometry */
 
-type Box = { x: number; y: number; w: number; h: number }
-const cx = (b: Box) => b.x + b.w / 2
-const cy = (b: Box) => b.y + b.h / 2
+type Pt = { x: number; y: number }
+type Rect = Pt & { w: number; h: number }   /* centre, not corner */
+type Dia = Pt & { rx: number; ry: number }
 
-const ENT: Record<string, Box> = {
-  agent: { x: 34, y: 24, w: 132, h: 50 },
-  session: { x: 34, y: 186, w: 132, h: 50 },
-  memory: { x: 330, y: 300, w: 156, h: 58 },
-  embedding: { x: 646, y: 300, w: 140, h: 50 },
-  fact: { x: 330, y: 500, w: 132, h: 50 },
-  entity: { x: 34, y: 500, w: 132, h: 50 },
+const INK = 'var(--text)'
+
+/** Where a ray from the centre of a rectangle leaves its border. */
+function onRect(r: Rect, toward: Pt): Pt {
+  const dx = toward.x - r.x
+  const dy = toward.y - r.y
+  if (dx === 0 && dy === 0) return { x: r.x, y: r.y }
+  const s = Math.min(
+    dx === 0 ? Infinity : r.w / 2 / Math.abs(dx),
+    dy === 0 ? Infinity : r.h / 2 / Math.abs(dy),
+  )
+  return { x: r.x + dx * s, y: r.y + dy * s }
 }
 
-const REL: Record<string, { x: number; y: number; r: number }> = {
-  runs: { x: 100, y: 130, r: 40 },
-  records: { x: 240, y: 268, r: 46 },
-  vectorises: { x: 566, y: 325, r: 44 },
-  restates: { x: 396, y: 425, r: 42 },
-  concerns: { x: 210, y: 402, r: 42 },
-  about: { x: 248, y: 525, r: 38 },
-  supersedes: { x: 408, y: 196, r: 44 },
+/** The same for a rhombus, whose boundary is |x|/rx + |y|/ry = 1. */
+function onDia(d: Dia, toward: Pt): Pt {
+  const dx = toward.x - d.x
+  const dy = toward.y - d.y
+  const k = Math.abs(dx) / d.rx + Math.abs(dy) / d.ry
+  if (k === 0) return { x: d.x, y: d.y }
+  return { x: d.x + dx / k, y: d.y + dy / k }
+}
+
+/**
+ * Where a cardinality label sits: a fixed distance from the entity end of the
+ * segment rather than a fraction of it. Several edges here are barely twice a
+ * diamond's radius, and any fraction puts the label inside the shape it was
+ * measured from; the midpoint is the fallback when the segment is too short to
+ * hold the label anywhere else.
+ */
+function along(a: Pt, b: Pt, want: number): Pt {
+  const dx = b.x - a.x
+  const dy = b.y - a.y
+  const len = Math.hypot(dx, dy) || 1
+  const d = Math.min(want, len / 2)
+  return { x: a.x + (dx / len) * d, y: a.y + (dy / len) * d }
+}
+
+const path = (pts: Pt[]) =>
+  pts.map((p, i) => `${i ? 'L' : 'M'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ')
+
+/* ----------------------------------------------------------------- layout */
+
+/**
+ * Placement, and only placement. The declaration says what exists; this says
+ * where it goes, because no automatic layout gets an eight-way hub like MEMORY
+ * readable at print size. Every entity in the declaration needs an entry here,
+ * and `unplaced` below turns a missing one into visible text instead of a box
+ * that quietly stopped being drawn.
+ *
+ * The arrangement follows the vault's own shape: the two scoping databases at
+ * the top, MEMORY as the hub in the middle with its three bridges above it and
+ * its three outgoing relationships below, and the knowledge graph — ENTITY and
+ * FACT — along the bottom. PROJECT reaches FACT directly as well, and that edge
+ * takes the right margin because it is the one relationship that skips the hub.
+ */
+const W = 820
+const H = 872
+const MIN_W = 740
+
+const PLACE: Record<string, Rect> = {
+  topic: { x: 120, y: 56, w: 138, h: 48 },
+  project: { x: 524, y: 56, w: 138, h: 48 },
+  memory_topic: { x: 150, y: 184, w: 184, h: 96 },
+  memory_project: { x: 548, y: 184, w: 184, h: 96 },
+  memory_tag: { x: 80, y: 312, w: 132, h: 56 },
+  memory: { x: 430, y: 312, w: 182, h: 60 },
+  entity: { x: 175, y: 574, w: 152, h: 56 },
+  fact: { x: 560, y: 574, w: 152, h: 56 },
+  entity_alias: { x: 132, y: 816, w: 186, h: 60 },
+}
+
+/** One per relationship that is not hosted inside a bridge rectangle. */
+const DIA: Record<string, Dia> = {
+  scopes: { x: 322, y: 56, rx: 54, ry: 27 },
+  supersedes: { x: 350, y: 186, rx: 56, ry: 27 },
+  tagged: { x: 252, y: 312, rx: 44, ry: 26 },
+  aliased: { x: 132, y: 700, rx: 50, ry: 26 },
+  introduces: { x: 175, y: 442, rx: 54, ry: 27 },
+  evidences: { x: 392, y: 442, rx: 52, ry: 27 },
+  retracts: { x: 556, y: 442, rx: 50, ry: 27 },
+  fact_scope: { x: 748, y: 442, rx: 50, ry: 27 },
+  subject_of: { x: 368, y: 574, rx: 56, ry: 27 },
+  object_of: { x: 368, y: 704, rx: 54, ry: 27 },
+}
+
+/**
+ * The one edge that cannot run straight. PROJECT scopes FACT directly, and the
+ * two sit at opposite corners with the whole hub between them, so the edge is
+ * taken out along the top and down the right margin — an elbow the eye can
+ * follow, rather than a diagonal through five other relationships.
+ */
+const ELBOW: Record<string, Pt> = {
+  fact_scope: { x: 748, y: 56 },
 }
 
 /* ------------------------------------------------------------- primitives */
 
-function Entity({
-  box, label, weak, note,
-}: { box: Box; label: string; weak?: boolean; note?: string }) {
+/** Type sizes, kept in one place so the 11-unit floor is checkable. */
+const FS = { name: 13, sub: 11, rel: 11.5, card: 12, note: 11 }
+
+/* SVG text inherits the face but not the numeric feature, and every figure in
+   this paper sets its numbers in tabular figures. */
+const TNUM: CSSProperties = { fontVariantNumeric: 'tabular-nums' }
+
+function Link({
+  pts, total, dashed,
+}: { pts: Pt[]; total?: boolean; dashed?: boolean }) {
+  /* A dashed edge is a synthetic one, and it carries the accent for the same
+     reason its box does: the reader has to be able to see, at a glance, which
+     parts of this model the vault does not contain. */
+  const tone = dashed ? 'var(--accent)' : INK
+  const dash = dashed ? '5 3.5' : undefined
+  /* The second rail of a total-participation edge is offset along the normal of
+     the first segment. Every total edge in this model is a single straight run,
+     so one normal is the whole answer. */
+  const a = pts[0]
+  const b = pts[1] ?? pts[0]
+  const len = Math.hypot(b.x - a.x, b.y - a.y) || 1
+  const nx = (-(b.y - a.y) / len) * 2.6
+  const ny = ((b.x - a.x) / len) * 2.6
   return (
     <g>
-      {weak && (
-        <rect
-          x={box.x - 5} y={box.y - 5} width={box.w + 10} height={box.h + 10}
-          rx={3} fill="none" stroke="var(--text)" strokeWidth={1.4}
+      <path d={path(pts)} fill="none" stroke={tone} strokeWidth={1.15} strokeDasharray={dash} />
+      {total ? (
+        <path
+          d={path(pts.map((p) => ({ x: p.x + nx, y: p.y + ny })))}
+          fill="none" stroke={tone} strokeWidth={1.15} strokeDasharray={dash}
         />
-      )}
-      <rect
-        x={box.x} y={box.y} width={box.w} height={box.h} rx={3}
-        fill="var(--bg-raised)" stroke="var(--text)" strokeWidth={1.4}
-      />
-      <text
-        x={cx(box)} y={note ? cy(box) - 8 : cy(box)} textAnchor="middle" dominantBaseline="central"
-        fontSize={13} fontWeight={550} letterSpacing="0.04em" fill="var(--text)"
-        fontFamily="var(--font-mono)"
-      >
-        {label}
-      </text>
-      {/* The partial key belongs inside the entity, not floating under it: the
-          space below MEMORY already carries two relationship edges and their
-          cardinality labels, and a caption placed there collides with them. */}
-      {note && (
-        <text
-          x={cx(box)} y={cy(box) + 12} textAnchor="middle" dominantBaseline="central"
-          fontSize={9} fill="var(--text-tertiary)" fontFamily="var(--font-mono)"
-        >
-          {note}
-        </text>
-      )}
+      ) : null}
     </g>
   )
 }
 
-function Diamond({
-  at, label, identifying,
-}: { at: { x: number; y: number; r: number }; label: string; identifying?: boolean }) {
-  const pts = (r: number) =>
-    `${at.x},${at.y - r * 0.62} ${at.x + r},${at.y} ${at.x},${at.y + r * 0.62} ${at.x - r},${at.y}`
+/** Drawn in a final pass: a number hidden under a diamond is worse than one
+ *  printed on top of it, and on short edges there is nowhere else to put it. */
+function Card({ at, text }: { at: Pt; text: string }) {
   return (
     <g>
-      {identifying && (
-        <polygon points={pts(at.r + 6)} fill="none" stroke="var(--text)" strokeWidth={1.3} />
-      )}
+      <circle cx={at.x} cy={at.y} r={9.5} fill="var(--bg-raised)" />
+      <text
+        x={at.x} y={at.y} textAnchor="middle" dominantBaseline="central"
+        fontSize={FS.card} fontWeight={600} fill="var(--accent-text)"
+        fontFamily="var(--font-mono)" style={TNUM}
+      >
+        {text}
+      </text>
+    </g>
+  )
+}
+
+/** How far the identifying ring sits outside the diamond it doubles. */
+const RING = 6
+
+function Rhombus({
+  d, label, identifying, dashed,
+}: { d: Dia; label: string; identifying?: boolean; dashed?: boolean }) {
+  const pts = (g: number) =>
+    `${d.x},${d.y - d.ry - g} ${d.x + d.rx + g * 1.9},${d.y} ${d.x},${d.y + d.ry + g} ${d.x - d.rx - g * 1.9},${d.y}`
+  const stroke = dashed ? 'var(--accent)' : INK
+  const dash = dashed ? '5 3.5' : undefined
+  return (
+    <g>
+      {identifying ? (
+        <polygon points={pts(RING)} fill="none" stroke={stroke} strokeWidth={1.2} strokeDasharray={dash} />
+      ) : null}
       <polygon
-        points={pts(at.r)} fill="var(--bg-sunken)" stroke="var(--text)" strokeWidth={1.3}
+        points={pts(0)} fill={dashed ? 'var(--accent-quiet)' : 'var(--bg-sunken)'}
+        stroke={stroke} strokeWidth={1.3} strokeDasharray={dash}
       />
       <text
-        x={at.x} y={at.y} textAnchor="middle" dominantBaseline="central"
-        fontSize={10.5} fill="var(--text-secondary)" fontStyle="italic"
+        x={d.x} y={d.y} textAnchor="middle" dominantBaseline="central"
+        fontSize={FS.rel} fontStyle="italic" fill="var(--text-secondary)"
       >
         {label}
       </text>
@@ -111,333 +256,707 @@ function Diamond({
   )
 }
 
-type Pt = { x: number; y: number }
-type Edge = { a: Pt; b: Pt; total?: boolean; card?: string; pad?: number }
-
 /**
- * Where a cardinality label sits on an edge.
- *
- * Not a fraction of the edge: a diamond has a radius of up to 46px and many
- * edges here are barely twice that, so any fixed fraction puts the label inside
- * the diamond it starts from. `pad` is how far the endpoint is buried — the
- * diamond's radius when the edge begins at one, zero when it begins at an
- * entity's border — and the label is placed just clear of it.
+ * An entity box. The second line is the database it is, which for a bridge is
+ * either the vault structure it was projected out of or — for the one relation
+ * the vault does not have at all — the fact that it does not exist there.
  */
-function cardPoint({ a, b, pad = 0 }: Edge): Pt {
-  const dx = b.x - a.x
-  const dy = b.y - a.y
-  const len = Math.hypot(dx, dy) || 1
-  const d = Math.min(pad + 17, len - 12)
-  return { x: a.x + (dx / len) * d, y: a.y + (dy / len) * d }
-}
-
-/** The connector itself, with a second rail when participation is total. */
-function LinkLine({ a, b, total }: Edge) {
-  const dx = b.x - a.x
-  const dy = b.y - a.y
-  const len = Math.hypot(dx, dy) || 1
-  const nx = (-dy / len) * 2.6
-  const ny = (dx / len) * 2.6
+function Box({
+  r, label, sub, weak, synthetic,
+}: { r: Rect; label: string; sub: string; weak?: boolean; synthetic?: boolean }) {
+  const stroke = synthetic ? 'var(--accent)' : INK
+  const dash = synthetic ? '5 3.5' : undefined
+  const x = r.x - r.w / 2
+  const y = r.y - r.h / 2
   return (
     <g>
-      <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="var(--text)" strokeWidth={1.15} />
-      {total && (
-        <line
-          x1={a.x + nx} y1={a.y + ny} x2={b.x + nx} y2={b.y + ny}
-          stroke="var(--text)" strokeWidth={1.15}
+      {weak ? (
+        <rect
+          x={x - 5} y={y - 5} width={r.w + 10} height={r.h + 10} rx={3}
+          fill="none" stroke={stroke} strokeWidth={1.2} strokeDasharray={dash}
         />
-      )}
-    </g>
-  )
-}
-
-/**
- * Cardinality labels are drawn in a final pass, after the boxes and diamonds.
- * They are the one element that may legitimately sit over another — an edge
- * that runs short leaves nowhere else to put the number — and a label hidden
- * beneath a diamond is worse than one printed on top of it.
- */
-function CardLabel({ at, card }: { at: Pt; card: string }) {
-  return (
-    <g>
-      <circle cx={at.x} cy={at.y} r={9} fill="var(--bg)" />
+      ) : null}
+      <rect
+        x={x} y={y} width={r.w} height={r.h} rx={3}
+        fill={synthetic ? 'var(--accent-quiet)' : 'var(--bg-raised)'}
+        stroke={stroke} strokeWidth={1.4} strokeDasharray={dash}
+      />
       <text
-        x={at.x} y={at.y} textAnchor="middle" dominantBaseline="central"
-        fontSize={11} fontWeight={600} fill="var(--accent-text)"
+        x={r.x} y={r.y - 9} textAnchor="middle" dominantBaseline="central"
+        fontSize={FS.name} fontWeight={550} letterSpacing="0.04em"
+        fill={INK} fontFamily="var(--font-mono)"
+      >
+        {label}
+      </text>
+      <text
+        x={r.x} y={r.y + 11} textAnchor="middle" dominantBaseline="central"
+        fontSize={FS.sub} fill={synthetic ? 'var(--accent-text)' : 'var(--text-tertiary)'}
         fontFamily="var(--font-mono)"
       >
-        {card}
+        {sub}
       </text>
     </g>
   )
 }
 
-/* ----------------------------------------------------------- the ER view */
-
 /**
- * Every connector, declared once so the three render passes cannot disagree
- * about where an edge runs. `pad` is the radius of whichever diamond the edge
- * starts inside — see `cardPoint`.
+ * A bridge that resolves an M:N: the relationship diamond drawn inside the
+ * rectangle it becomes. Chen has no symbol for "this relationship is also a
+ * relation", and in this schema that distinction is the whole difference
+ * between what Notion stores — an array of page ids in a relation property —
+ * and what the reimplementation stores.
  */
-const M_ = ENT.memory
-const EDGES: Edge[] = [
-  /* AGENT ─ runs ─ SESSION */
-  { a: { x: cx(ENT.agent), y: ENT.agent.y + ENT.agent.h }, b: REL.runs, card: '1' },
-  { a: REL.runs, b: { x: cx(ENT.session), y: ENT.session.y }, card: 'N', total: true, pad: REL.runs.r * 0.62 },
-
-  /* SESSION ═ records ═ MEMORY — identifying, total on both ends */
-  { a: { x: cx(ENT.session), y: ENT.session.y + ENT.session.h }, b: REL.records, card: '1', total: true },
-  { a: REL.records, b: { x: M_.x, y: cy(M_) }, card: 'N', total: true, pad: REL.records.r },
-
-  /* MEMORY ─ vectorises ─ EMBEDDING */
-  { a: { x: M_.x + M_.w, y: cy(M_) }, b: REL.vectorises, card: '1' },
-  { a: REL.vectorises, b: { x: ENT.embedding.x, y: cy(ENT.embedding) }, card: '1', total: true, pad: REL.vectorises.r },
-
-  /* MEMORY ─ restates ─ FACT */
-  { a: { x: cx(M_) + 24, y: M_.y + M_.h }, b: REL.restates, card: 'N' },
-  { a: REL.restates, b: { x: cx(ENT.fact) + 20, y: ENT.fact.y }, card: '1', pad: REL.restates.r * 0.62 },
-
-  /* MEMORY ─ concerns ─ ENTITY — many-to-many, resolved by MEMORY_ENTITY */
-  { a: { x: M_.x + 12, y: M_.y + M_.h }, b: REL.concerns, card: 'M' },
-  { a: REL.concerns, b: { x: cx(ENT.entity), y: ENT.entity.y }, card: 'N', pad: REL.concerns.r * 0.62 },
-
-  /* FACT ─ about ─ ENTITY */
-  { a: { x: ENT.fact.x, y: cy(ENT.fact) }, b: REL.about, card: 'N' },
-  { a: REL.about, b: { x: ENT.entity.x + ENT.entity.w, y: cy(ENT.entity) }, card: '1', total: true, pad: REL.about.r },
-]
-
-function ChenDiagram({ entities }: { entities: SchemaEntity[] }) {
-  const spec = entities.find((e) => e.specialization)?.specialization
-  const m = ENT.memory
-  const triY = 396
-  const subs = spec?.subtypes ?? []
-  const subW = 104
-  const subGap = 14
-  const subTotal = subs.length * subW + (subs.length - 1) * subGap
-  const subX0 = 830 - subTotal
-
+function Associative({
+  r, label, name, sub,
+}: { r: Rect; label: string; name: string; sub: string }) {
+  const x = r.x - r.w / 2
+  const y = r.y - r.h / 2
   return (
-    <svg viewBox="0 0 840 610" width="100%" role="img"
-      aria-label="Entity-relationship diagram of the agent memory schema in Chen notation">
-      <title>Agent memory — entity-relationship model</title>
-
-      {EDGES.map((e, i) => <LinkLine key={`l${i}`} {...e} />)}
-
-      {/* recursive supersedes: out of the top of MEMORY and back into it */}
-      <path
-        d={`M ${cx(m) - 34} ${m.y} C ${cx(m) - 60} ${m.y - 60}, ${REL.supersedes.x - 78} ${REL.supersedes.y - 14}, ${REL.supersedes.x - REL.supersedes.r} ${REL.supersedes.y}`}
-        fill="none" stroke="var(--text)" strokeWidth={1.15}
+    <g>
+      <rect
+        x={x - 5} y={y - 5} width={r.w + 10} height={r.h + 10} rx={3}
+        fill="none" stroke={INK} strokeWidth={1.2}
       />
-      <path
-        d={`M ${REL.supersedes.x + REL.supersedes.r} ${REL.supersedes.y} C ${REL.supersedes.x + 86} ${REL.supersedes.y + 10}, ${cx(m) + 66} ${m.y - 54}, ${cx(m) + 34} ${m.y}`}
-        fill="none" stroke="var(--text)" strokeWidth={1.15}
+      <rect
+        x={x} y={y} width={r.w} height={r.h} rx={3}
+        fill="var(--bg-raised)" stroke={INK} strokeWidth={1.4}
       />
-      <text x={cx(m) - 62} y={m.y - 26} fontSize={11} fontWeight={600}
-        fill="var(--accent-text)" fontFamily="var(--font-mono)">1</text>
-      <text x={cx(m) + 54} y={m.y - 22} fontSize={11} fontWeight={600}
-        fill="var(--accent-text)" fontFamily="var(--font-mono)">N</text>
-
-      {/* ISA — disjoint, total specialization on `kind`. The triangle is sized
-          to hold its own label; a smaller one forces the word outside it, where
-          it reads as an annotation rather than as part of the symbol. */}
-      <line x1={m.x + m.w} y1={m.y + m.h - 8} x2={700} y2={triY - 30}
-        stroke="var(--text)" strokeWidth={1.15} />
-      <polygon points={`700,${triY - 34} 672,${triY + 10} 728,${triY + 10}`}
-        fill="var(--bg-sunken)" stroke="var(--text)" strokeWidth={1.2} />
-      <text x={700} y={triY - 1} textAnchor="middle" dominantBaseline="central" fontSize={10}
-        fontWeight={600} fill="var(--text)" fontFamily="var(--font-mono)">ISA</text>
-      <circle cx={752} cy={triY - 12} r={9.5} fill="var(--bg)" stroke="var(--text)" strokeWidth={1.1} />
-      <text x={752} y={triY - 12} textAnchor="middle" dominantBaseline="central"
-        fontSize={10} fontWeight={600} fill="var(--text)" fontFamily="var(--font-mono)">d</text>
-
-      <line x1={700} y1={triY + 10} x2={700} y2={triY + 26} stroke="var(--text)" strokeWidth={1.15} />
-      <line x1={subX0 + subW / 2} y1={triY + 26} x2={subX0 + subTotal - subW / 2} y2={triY + 26}
-        stroke="var(--text)" strokeWidth={1.15} />
-      {subs.map((s, i) => {
-        const x = subX0 + i * (subW + subGap)
-        return (
-          <g key={s.name}>
-            <line x1={x + subW / 2} y1={triY + 26} x2={x + subW / 2} y2={triY + 44}
-              stroke="var(--text)" strokeWidth={1.15} />
-            <rect x={x} y={triY + 44} width={subW} height={34} rx={3}
-              fill="var(--bg-raised)" stroke="var(--text)" strokeWidth={1.1} />
-            <text x={x + subW / 2} y={triY + 61} textAnchor="middle" dominantBaseline="central"
-              fontSize={10.5} fill="var(--text)" fontFamily="var(--font-mono)">{s.name}</text>
-          </g>
-        )
-      })}
-
-      {/* diamonds and boxes drawn last so links tuck underneath */}
-      <Diamond at={REL.runs} label="runs" />
-      <Diamond at={REL.records} label="records" identifying />
-      <Diamond at={REL.vectorises} label="vectorises" />
-      <Diamond at={REL.restates} label="restates" />
-      <Diamond at={REL.concerns} label="concerns" />
-      <Diamond at={REL.about} label="about" />
-      <Diamond at={REL.supersedes} label="supersedes" />
-
-      <Entity box={ENT.agent} label="AGENT" />
-      <Entity box={ENT.session} label="SESSION" />
-      <Entity box={ENT.memory} label="MEMORY" weak note="partial key: turn_no" />
-      <Entity box={ENT.embedding} label="EMBEDDING" />
-      <Entity box={ENT.fact} label="FACT" />
-      <Entity box={ENT.entity} label="ENTITY" />
-
-      {/* Last pass: the numbers stay legible whatever they land on. */}
-      {EDGES.map((e, i) => (e.card ? <CardLabel key={`c${i}`} at={cardPoint(e)} card={e.card} /> : null))}
-
-    </svg>
+      <text
+        x={r.x} y={y + 18} textAnchor="middle" dominantBaseline="central"
+        fontSize={FS.name} fontWeight={550} letterSpacing="0.04em"
+        fill={INK} fontFamily="var(--font-mono)"
+      >
+        {name}
+      </text>
+      <text
+        x={r.x} y={y + 34} textAnchor="middle" dominantBaseline="central"
+        fontSize={FS.sub} fill="var(--text-tertiary)" fontFamily="var(--font-mono)"
+      >
+        {sub}
+      </text>
+      <Rhombus d={{ x: r.x, y: r.y + 20, rx: 80, ry: 24 }} label={label} />
+    </g>
   )
 }
 
-/* ------------------------------------------------- relational schema view */
+/**
+ * The specialisation. Ten subtypes are listed rather than drawn, because ten
+ * boxes would say the schema has ten relations and it has one — the count beside
+ * a kind is how many of MEMORY's properties are meaningful for that kind alone,
+ * which is the price of the single-table specialisation, printed.
+ */
+type Spec = NonNullable<EntityDef['specialization']>
 
-function RelationalDiagram({ entities }: { entities: SchemaEntity[] }) {
-  const gid = useId()
-  const COL = [24, 300, 576]
-  const rowH = (e: SchemaEntity) => 30 + e.attrs.length * 17 + 10
-  const place: Record<string, { x: number; y: number; w: number; h: number }> = {}
-  const order = ['agent', 'session', 'memory', 'entity', 'fact', 'memory_entity', 'embedding']
-  const colY = [12, 12, 12]
-  for (let i = 0; i < order.length; i++) {
-    const e = entities.find((x) => x.name === order[i])!
-    const c = i % 3
-    place[e.name] = { x: COL[c], y: colY[c], w: 246, h: rowH(e) }
-    colY[c] += rowH(e) + 22
-  }
-  const height = Math.max(...colY) + 8
-
-  const anchorOf = (t: string) => {
-    const p = place[t]
-    return { x: p.x + p.w / 2, y: p.y + 14 }
-  }
+function Isa({ box, spec }: { box: Rect; spec: Spec }) {
+  const apex = { x: box.x + box.w / 2 + 20, y: box.y }
+  const baseX = apex.x + 58
+  const panelX = baseX + 18
+  const panelW = 110
+  const rowH = 14
+  const panelH = 22 + spec.subtypes.length * rowH + 8
+  /* Hung slightly below the axis of the triangle rather than centred on it: ten
+     kinds make a panel taller than the entity it belongs to, and centred it
+     collides with the bridge above. The stem still enters at the triangle's own
+     height, so the connection stays unambiguous. */
+  const panelY = box.y - panelH / 2 + 20
 
   return (
-    <svg viewBox={`0 0 846 ${height}`} width="100%" role="img"
-      aria-label="Relational schema with primary and foreign keys">
-      <title>Agent memory — relational schema</title>
-      <defs>
-        <marker id={`${gid}-fk`} viewBox="0 0 8 8" refX="7" refY="4"
-          markerWidth="6" markerHeight="6" orient="auto">
-          <path d="M0,1 L7,4 L0,7" fill="none" stroke="var(--accent)" strokeWidth={1.3} />
-        </marker>
-      </defs>
+    <g>
+      {/* Total specialisation is a double line, the same symbol total
+          participation uses elsewhere on the drawing. */}
+      <Link pts={[onRect(box, apex), apex]} total={spec.total} />
+      <polygon
+        points={`${apex.x},${apex.y} ${baseX},${apex.y - 30} ${baseX},${apex.y + 30}`}
+        fill="var(--bg-sunken)" stroke={INK} strokeWidth={1.2}
+      />
+      <text
+        x={apex.x + 36} y={apex.y} textAnchor="middle" dominantBaseline="central"
+        fontSize={FS.rel} fontWeight={600} fill={INK} fontFamily="var(--font-mono)"
+      >
+        ISA
+      </text>
+      {spec.disjoint ? (
+        <g>
+          <circle
+            cx={apex.x + 32} cy={apex.y - 32} r={11.5}
+            fill="var(--bg-raised)" stroke={INK} strokeWidth={1.1}
+          />
+          <text
+            x={apex.x + 32} y={apex.y - 32} textAnchor="middle" dominantBaseline="central"
+            fontSize={FS.rel} fontWeight={600} fill={INK} fontFamily="var(--font-mono)"
+          >
+            d
+          </text>
+        </g>
+      ) : null}
+      {/* The discriminating attribute belongs beside the triangle: without it
+          the reader knows the specialisation is disjoint but not on what. */}
+      <text
+        x={apex.x + 30} y={apex.y + 48} textAnchor="middle"
+        fontSize={FS.note} fill="var(--text-tertiary)" fontFamily="var(--font-mono)"
+      >
+        {spec.discriminator}
+      </text>
 
-      {/* foreign keys first, so the tables sit on top of them */}
-      {entities.flatMap((e) =>
-        e.attrs.filter((a) => a.fk).map((a) => {
-          const [rt] = a.fk!.split('.')
-          if (!place[rt] || !place[e.name]) return null
-          const from = place[e.name]
-          const to = anchorOf(rt)
-          const idx = e.attrs.indexOf(a)
-          const y = from.y + 30 + idx * 17 + 8
-          const startX = from.x + from.w
-          const selfRef = rt === e.name
-          const d = selfRef
-            ? `M ${startX} ${y} C ${startX + 34} ${y}, ${startX + 34} ${from.y + 8}, ${from.x + from.w - 20} ${from.y + 4}`
-            : `M ${startX} ${y} C ${startX + 30} ${y}, ${to.x - 40} ${to.y}, ${to.x} ${to.y}`
-          return (
-            <path key={`${e.name}.${a.name}`} d={d} fill="none"
-              stroke="var(--accent-line)" strokeWidth={1.1} strokeDasharray="3 2.5"
-              markerEnd={`url(#${gid}-fk)`} />
-          )
-        }),
-      )}
-
-      {entities.map((e) => {
-        const p = place[e.name]
-        if (!p) return null
+      <line x1={baseX} y1={apex.y} x2={panelX} y2={apex.y} stroke={INK} strokeWidth={1.15} />
+      <rect
+        x={panelX} y={panelY} width={panelW} height={panelH} rx={3}
+        fill="var(--bg-sunken)" stroke="var(--border-strong)" strokeWidth={1}
+      />
+      <text
+        x={panelX + 10} y={panelY + 14} dominantBaseline="central"
+        fontSize={FS.note} fill="var(--text-tertiary)" fontFamily="var(--font-mono)" style={TNUM}
+      >
+        {spec.subtypes.length} kinds
+      </text>
+      {spec.subtypes.map((sub, i) => {
+        const y = panelY + 22 + i * rowH + 9
         return (
-          <g key={e.name}>
-            <rect x={p.x} y={p.y} width={p.w} height={p.h} rx={4}
-              fill="var(--bg-raised)" stroke="var(--border-strong)" strokeWidth={1} />
-            <rect x={p.x} y={p.y} width={p.w} height={24} rx={4}
-              fill={e.kind === 'weak' ? 'var(--accent-quiet)' : 'var(--bg-sunken)'} />
-            <line x1={p.x} y1={p.y + 24} x2={p.x + p.w} y2={p.y + 24}
-              stroke="var(--border)" strokeWidth={1} />
-            <text x={p.x + 10} y={p.y + 12} dominantBaseline="central" fontSize={11.5}
-              fontWeight={600} fill="var(--text)" fontFamily="var(--font-mono)">
-              {e.name}
+          <g key={sub.name}>
+            <text
+              x={panelX + 10} y={y} dominantBaseline="central"
+              fontSize={FS.rel} fill={INK} fontFamily="var(--font-mono)"
+            >
+              {sub.name}
             </text>
-            <text x={p.x + p.w - 10} y={p.y + 12} dominantBaseline="central" textAnchor="end"
-              fontSize={9} fill="var(--text-tertiary)" fontFamily="var(--font-mono)">
-              {e.kind}
-            </text>
-            {e.attrs.map((a, i) => {
-              const y = p.y + 30 + i * 17 + 8
-              const isPk = e.pk.includes(a.name)
-              return (
-                <g key={a.name}>
-                  <text x={p.x + 10} y={y} dominantBaseline="central" fontSize={10.5}
-                    fill={isPk ? 'var(--text)' : 'var(--text-secondary)'}
-                    fontWeight={isPk ? 600 : 400} fontFamily="var(--font-mono)"
-                    textDecoration={isPk ? 'underline' : undefined}>
-                    {a.name}
-                  </text>
-                  <text x={p.x + p.w - 10} y={y} dominantBaseline="central" textAnchor="end"
-                    fontSize={9} fill={a.fk ? 'var(--accent-text)' : 'var(--text-faint)'}
-                    fontFamily="var(--font-mono)">
-                    {a.fk ? `FK → ${a.fk.split('.')[0]}` : a.type}
-                  </text>
-                </g>
-              )
-            })}
+            {sub.own.length > 0 ? (
+              <text
+                x={panelX + panelW - 9} y={y} textAnchor="end" dominantBaseline="central"
+                fontSize={FS.rel} fontWeight={600} fill="var(--accent-text)"
+                fontFamily="var(--font-mono)" style={TNUM}
+              >
+                {sub.own.length}
+              </text>
+            ) : null}
           </g>
         )
       })}
-    </svg>
+    </g>
+  )
+}
+
+/* ------------------------------------------------------------ the drawing */
+
+function Chen({
+  entities, relationships,
+}: { entities: EntityDef[]; relationships: RelationshipDef[] }) {
+  const byName = new Map(entities.map((e) => [e.name, e]))
+
+  /* A bridge that hosts a relationship is drawn as the associative glyph; a
+     bridge that is the far end of one is drawn as a weak entity. Both facts come
+     out of the relationship list, not out of this file. */
+  const hostedBy = new Map<string, RelationshipDef>()
+  for (const r of relationships) if (r.via) hostedBy.set(r.via, r)
+
+  const spec = entities.find((e) => e.specialization)
+  const specialization = spec?.specialization
+  const specBox = spec ? PLACE[spec.name] : undefined
+
+  const unplaced = [
+    ...entities.filter((e) => !PLACE[e.name]).map((e) => e.label),
+    ...relationships
+      .filter((r) => !r.via && !DIA[r.name])
+      .map((r) => `${r.label} (${r.from}→${r.to})`),
+  ]
+
+  /* Each relationship becomes two half-edges: entity to shape, shape to entity.
+     The shape is the relationship's own diamond, or the rectangle of the bridge
+     that hosts it. Both ends are computed from the placed geometry, so moving a
+     box moves its edges with it. */
+  type Half = { key: string; pts: Pt[]; card: string; total: boolean; dashed: boolean }
+  const halves: Half[] = []
+
+  for (const r of relationships) {
+    if (r.recursive) continue
+    const from = PLACE[r.from]
+    const to = PLACE[r.to]
+    if (!from || !to) continue
+    const host = r.via ? PLACE[r.via] : undefined
+    const plain = r.via ? undefined : DIA[r.name]
+    if (!host && !plain) continue
+    /* An identifying relationship is drawn as a second rhombus outside the
+       first, so the edge has to stop on the outer one or it appears to pierce
+       the symbol. RING keeps the ring parallel to the shape it surrounds, which
+       needs more offset across than down. */
+    const d = plain && r.weakSide
+      ? { ...plain, rx: plain.rx + RING * 1.9, ry: plain.ry + RING }
+      : plain
+    const hub: Pt = host ?? (d as Dia)
+    const edge = (side: Pt): Pt =>
+      host ? onRect(host, side) : onDia(d as Dia, side)
+    const dashed = r.synthetic === true
+
+    const bend = ELBOW[r.name]
+    if (bend) {
+      /* The elbow leaves the entity towards the bend, turns once, and enters the
+         shape from there — so both ends still sit on real borders. */
+      halves.push({
+        key: `${r.name}-from`,
+        pts: [onRect(from, bend), bend, edge(bend)],
+        card: r.fromCard,
+        total: false,
+        dashed,
+      })
+    } else {
+      halves.push({
+        key: `${r.name}-from`,
+        pts: [onRect(from, hub), edge(from)],
+        card: r.fromCard,
+        total: false,
+        dashed,
+      })
+    }
+    halves.push({
+      key: `${r.name}-to`,
+      pts: [onRect(to, hub), edge(to)],
+      card: r.toCard,
+      /* A weak side cannot exist without its parent, which is exactly what a
+         double line says. Nothing else in the declaration claims totality. */
+      total: r.weakSide === true,
+      dashed,
+    })
+  }
+
+  const recursive = relationships.filter((r) => r.recursive && PLACE[r.from] && DIA[r.name])
+
+  return (
+    <>
+      <div style={{ overflowX: 'auto', overscrollBehaviorX: 'contain' }}>
+        <svg
+          viewBox={`0 0 ${W} ${H}`}
+          style={{ width: '100%', minWidth: MIN_W, height: 'auto', display: 'block' }}
+          role="img"
+          aria-label={
+            `Entity-relationship diagram of Lore's vault in Chen notation: ${entities.length} relations ` +
+            `and ${relationships.length} relationships` +
+            (spec && specialization
+              ? `, with a ${specialization.disjoint ? 'disjoint' : 'overlapping'}` +
+                `${specialization.total ? ', total' : ''} specialisation of ${spec.label} into ` +
+                `${specialization.subtypes.length} subtypes on ${specialization.discriminator}`
+              : '') +
+            '. Both are listed in the tables that follow.'
+          }
+        >
+          <title>Lore&apos;s vault — entity-relationship model</title>
+
+          {/* Edges first, so every shape sits on top of the lines that reach it. */}
+          {halves.map((h) => (
+            <Link key={h.key} pts={h.pts} total={h.total} dashed={h.dashed} />
+          ))}
+
+          {/* The recursive relationship: two lines from one entity to one
+              diamond. The first leaves straight, the second bows outward, which
+              is what stops the pair reading as a single doubled line. */}
+          {recursive.map((r) => {
+            const b = PLACE[r.from]
+            const d = DIA[r.name]
+            const top = b.y - b.h / 2
+            const a0: Pt = { x: b.x - b.w * 0.21, y: top }
+            const b0: Pt = { x: b.x - b.w * 0.05, y: top }
+            const end = { x: d.x + d.rx, y: d.y }
+            const ctrl = { x: b.x + 35, y: (top + d.y) / 2 - 10 }
+            const curve = `M${b0.x},${b0.y} Q${ctrl.x},${ctrl.y} ${end.x},${end.y}`
+            /* t = 0.3 along the quadratic — clear of both the entity and the
+               diamond, which is where the second cardinality has to live. */
+            const at: Pt = {
+              x: 0.49 * b0.x + 0.42 * ctrl.x + 0.09 * end.x,
+              y: 0.49 * b0.y + 0.42 * ctrl.y + 0.09 * end.y,
+            }
+            return (
+              <g key={r.name}>
+                <Link pts={[a0, onDia(d, a0)]} />
+                <path d={curve} fill="none" stroke={INK} strokeWidth={1.15} />
+                <text
+                  x={d.x} y={d.y - d.ry - 12} textAnchor="middle"
+                  fontSize={FS.note} fill="var(--accent-text)" fontFamily="var(--font-mono)"
+                >
+                  recursive
+                </text>
+                <Card at={along(a0, onDia(d, a0), 26)} text={r.fromCard} />
+                <Card at={at} text={r.toCard} />
+              </g>
+            )
+          })}
+
+          {specialization && specBox ? <Isa box={specBox} spec={specialization} /> : null}
+
+          {/* Relationship diamonds. */}
+          {relationships.map((r) => {
+            const d = DIA[r.name]
+            if (!d || r.via) return null
+            return (
+              <Rhombus
+                key={r.name}
+                d={d}
+                label={r.label}
+                identifying={r.weakSide === true}
+                dashed={r.synthetic === true}
+              />
+            )
+          })}
+
+          {/* Entities last, so the lines tuck underneath them. */}
+          {entities.map((e) => {
+            const r = PLACE[e.name]
+            if (!r) return null
+            const host = hostedBy.get(e.name)
+            const synthetic = e.derivedFrom?.synthetic === true
+            const sub = synthetic ? 'not in the vault' : e.db
+            if (host) {
+              return (
+                <Associative key={e.name} r={r} name={e.label} sub={sub} label={host.label} />
+              )
+            }
+            return (
+              <Box
+                key={e.name}
+                r={r}
+                label={e.label}
+                sub={sub}
+                weak={e.kind === 'bridge'}
+                synthetic={synthetic}
+              />
+            )
+          })}
+
+          {/* Cardinalities in a final pass. */}
+          {halves.map((h) => (
+            <Card key={`c-${h.key}`} at={along(h.pts[0], h.pts[1], 24)} text={h.card} />
+          ))}
+        </svg>
+      </div>
+
+      {unplaced.length > 0 ? (
+        <p className="meta" style={{ marginTop: '0.5rem', color: 'var(--bad)' }}>
+          Declared but not drawn: {unplaced.join(', ')}. The declaration has grown past this
+          layout; the tables below are still complete.
+        </p>
+      ) : null}
+
+      <table className="sr-only">
+        <caption>The relations drawn above, with their primary keys.</caption>
+        <thead>
+          <tr>
+            <th scope="col">Relation</th>
+            <th scope="col">Where it lives</th>
+            <th scope="col">Kind</th>
+            <th scope="col">Primary key</th>
+            <th scope="col" className="n">Properties</th>
+          </tr>
+        </thead>
+        <tbody>
+          {entities.map((e) => (
+            <tr key={e.name}>
+              <th scope="row">{e.label}</th>
+              <td>{e.db}</td>
+              <td>
+                {e.kind === 'strong' ? 'entity' : 'bridge'}
+                {e.derivedFrom?.synthetic ? ', reimplementation only' : ''}
+                {e.specialization
+                  ? `, specialised on ${e.specialization.discriminator} into ${e.specialization.subtypes.length} subtypes`
+                  : ''}
+              </td>
+              <td>{e.pk.join(', ')}</td>
+              <td className="n">{e.attrs.length}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      <table className="sr-only">
+        <caption>The relationships drawn above, with cardinality read at each end.</caption>
+        <thead>
+          <tr>
+            <th scope="col">Relationship</th>
+            <th scope="col">From</th>
+            <th scope="col">To</th>
+            <th scope="col">Cardinality</th>
+            <th scope="col">Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+          {relationships.map((r) => (
+            <tr key={r.name}>
+              <th scope="row">{r.label}</th>
+              <td>{byName.get(r.from)?.label ?? r.from}</td>
+              <td>{byName.get(r.to)?.label ?? r.to}</td>
+              <td>
+                {r.fromCard}:{r.toCard}
+              </td>
+              <td>
+                {[
+                  r.recursive ? 'recursive' : null,
+                  r.via ? `bridged by ${r.via}` : null,
+                  r.weakSide ? 'identifying; total participation on the weak side' : null,
+                  r.synthetic ? 'exists only in the reimplementation' : null,
+                  r.participation ? `${r.participation} participation` : null,
+                  r.note ?? null,
+                ]
+                  .filter(Boolean)
+                  .join('. ')}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </>
   )
 }
 
 /* ------------------------------------------------------------------ shell */
 
+/**
+ * Defaults come from the capture, so a caller that just wants the figure writes
+ * `<ErDiagram />` and cannot hand it a schema other than the one measured.
+ *
+ * The frame is optional because the paper already numbers its own exhibits: §4
+ * wraps this in a `Figure` of its own, and a figure inside a figure is two
+ * borders and two headers around one drawing. Unframed, the notation key follows
+ * the picture as a note; framed, it goes where a key belongs, in the footer.
+ */
 export function ErDiagram({
-  entities, relationships,
-}: { entities: SchemaEntity[]; relationships: SchemaRelationship[] }) {
-  const [view, setView] = useState<'chen' | 'relational'>('chen')
-  const weak = entities.find((e) => e.kind === 'weak')
+  entities = schema.entities,
+  relationships = schema.relationships,
+  framed,
+  caption,
+  full,
+}: {
+  entities?: EntityDef[]
+  relationships?: RelationshipDef[]
+  framed?: boolean
+  caption?: ReactNode
+  full?: boolean
+}) {
+  const strong = entities.filter((e) => e.kind === 'strong').length
+  const bridges = entities.filter((e) => e.kind === 'bridge')
+  const synthetic = bridges.filter((e) => e.derivedFrom?.synthetic)
+  const spec = entities.find((e) => e.specialization)?.specialization
+
+  const key = (
+    <>
+      Rectangle = entity, one Notion database · double rectangle = bridge relation, with no
+      identity apart from its parent · a rectangle around a diamond = the bridge that resolves an
+      M:N · dashed and in the accent = exists only in the reimplementation
+      {synthetic.length === 1 ? ` (${synthetic[0].label}, ` : ' ('}
+      the shape a normalised schema would give the <span className="mono">Aliases</span> cell) ·
+      diamond = relationship · double diamond = identifying · double line = total participation ·
+      M / N / 1 are read at the end nearest each entity
+      {spec
+        ? ` · ISA with (d) = disjoint and total specialisation on ${spec.discriminator}; the number beside a kind is how many properties exist for that kind alone`
+        : ''}
+      .
+    </>
+  )
+
+  const drawing = <Chen entities={entities} relationships={relationships} />
+
+  if (!framed) {
+    return (
+      <>
+        {drawing}
+        <p className="meta" style={{ marginTop: '0.75rem' }}>{key}</p>
+      </>
+    )
+  }
 
   return (
-    <figure className="figure">
-      <div className="figure-head">
-        <span>{view === 'chen' ? 'Conceptual model — Chen notation' : 'Logical model — relational schema'}</span>
-        <span className="seg no-print" role="tablist" aria-label="Diagram view">
-          <button
-            type="button" role="tab" aria-selected={view === 'chen'}
-            className={view === 'chen' ? 'seg-on' : ''} onClick={() => setView('chen')}
-          >
-            ER
-          </button>
-          <button
-            type="button" role="tab" aria-selected={view === 'relational'}
-            className={view === 'relational' ? 'seg-on' : ''} onClick={() => setView('relational')}
-          >
-            Tables
-          </button>
-        </span>
+    <Figure
+      title="Lore's vault as an entity-relationship model"
+      meta={`${n(strong)} databases · ${n(bridges.length)} bridges · ${n(relationships.length)} relationships`}
+      caption={caption}
+      full={full}
+      foot={key}
+    >
+      {drawing}
+    </Figure>
+  )
+}
+
+/* ------------------------------------------------- property-level catalogue */
+
+/**
+ * What the diagram cannot show: the forty-one-property surface of a single
+ * Notion database, property by property, under the names Lore gives them.
+ *
+ * This exists so a reader with their own vault open can check our reconstruction
+ * against it — which is why the Lore name and the Notion type are columns rather
+ * than footnotes, and why a property we declare but never populate is marked
+ * `not modelled` instead of being left out. Leaving it out would make the
+ * catalogue agree with the harness by hiding the disagreement.
+ *
+ * The flags are the paper's argument at property granularity: `derived` marks an
+ * expression index materialised as a column, `repeating group` marks a 1NF
+ * violation living inside a cell, `valid time` / `transaction time` mark the two
+ * bitemporal axes, and a `<kind> only` flag marks a property that is meaningful
+ * for one subtype of MEMORY and null for the other nine.
+ */
+function flagsOf(a: Attr): { text: string; accent: boolean }[] {
+  const out: { text: string; accent: boolean }[] = []
+  /* The title is flagged because it is the constraint the BCNF violation grows
+     out of: every Notion database has exactly one, and it cannot be a relation. */
+  if (a.title) out.push({ text: 'title', accent: false })
+  if (a.derived) out.push({ text: 'derived', accent: true })
+  if (a.repeatingGroup) out.push({ text: 'repeating group', accent: true })
+  if (a.system) out.push({ text: 'system-managed', accent: false })
+  if (a.temporal) out.push({ text: `${a.temporal} time`, accent: false })
+  if (a.discriminator) out.push({ text: 'discriminator', accent: false })
+  if (a.subtypeOnly) out.push({ text: `${a.subtypeOnly} only`, accent: false })
+  if (a.recursive) out.push({ text: 'self-relation', accent: false })
+  if (a.modelled === false) out.push({ text: 'not modelled', accent: false })
+  return out
+}
+
+export function SchemaTable({
+  entity, notes = true,
+}: {
+  /** A relation name, a database name or a label. Omitted, every database. */
+  entity?: string
+  notes?: boolean
+}) {
+  /* No entity named: the whole catalogue, one table per real database, in the
+     order `lore init` creates them. The bridges are left out of this mode
+     deliberately — they hold nothing but the two keys already drawn in §4, and
+     a reader checking their own vault has no bridge to check them against. */
+  if (!entity) {
+    return (
+      <>
+        {schema.entities
+          .filter((e) => e.kind === 'strong')
+          .map((e, i) => (
+            <div key={e.name} style={i === 0 ? undefined : { marginTop: '2rem' }}>
+              <Catalogue e={e} notes={notes} />
+            </div>
+          ))}
+      </>
+    )
+  }
+
+  const key = entity.toLowerCase()
+  const e =
+    schema.entities.find((x) => x.name.toLowerCase() === key) ??
+    schema.entities.find((x) => x.db.toLowerCase() === key) ??
+    schema.entities.find((x) => x.label.toLowerCase() === key)
+
+  if (!e) {
+    return (
+      <p className="meta" style={{ color: 'var(--bad)' }}>
+        No relation named <span className="mono">{entity}</span> in the declaration.
+      </p>
+    )
+  }
+
+  return <Catalogue e={e} notes={notes} />
+}
+
+function Catalogue({ e, notes }: { e: EntityDef; notes: boolean }) {
+  const counts = {
+    total: e.attrs.length,
+    relations: e.attrs.filter((a) => a.notion === 'relation').length,
+    derived: e.attrs.filter((a) => a.derived).length,
+    system: e.attrs.filter((a) => a.system).length,
+    unmodelled: e.attrs.filter((a) => a.modelled === false).length,
+  }
+
+  const provenance = e.derivedFrom
+    ? e.derivedFrom.synthetic
+      ? `Not a database in the vault: projected out of the ${e.derivedFrom.attr} ${e.derivedFrom.notion} cell on ${e.derivedFrom.entity}, and only the reimplementation has it.`
+      : `Projected out of the ${e.derivedFrom.attr} ${e.derivedFrom.notion} property on ${e.derivedFrom.entity}.`
+    : null
+
+  return (
+    <>
+      <div className="table-wrap">
+        <table>
+          {/* The blurb quotes Lore's own property count; the numbers after it
+              are ours, and the two are labelled separately because they differ:
+              a page body and three timestamps are columns here and are not
+              properties there. */}
+          <caption>
+            <span className="mono">{e.label}</span> · {e.db} · {e.blurb} {n(counts.total)} columns
+            in the reimplementation: {n(counts.relations)} relation
+            {counts.relations === 1 ? '' : 's'}, {n(counts.derived)} derived,{' '}
+            {n(counts.system)} system-managed, {n(counts.unmodelled)} declared but left null by the
+            vault generator. {provenance}
+          </caption>
+          <thead>
+            <tr>
+              <th scope="col">Property</th>
+              <th scope="col">Lore name</th>
+              <th scope="col">Notion type</th>
+              <th scope="col" className="wrap">Flags</th>
+              {notes ? <th scope="col" className="wrap">Note</th> : null}
+            </tr>
+          </thead>
+          <tbody>
+            {e.attrs.map((a) => {
+              const isPk = e.pk.includes(a.name)
+              const t = a.notion ? schema.notionTypes[a.notion] : undefined
+              const flags = flagsOf(a)
+              return (
+                <tr key={a.name}>
+                  <th scope="row">
+                    <span
+                      className="mono"
+                      style={{
+                        textDecoration: isPk ? 'underline' : undefined,
+                        textUnderlineOffset: '0.18em',
+                        fontWeight: isPk ? 600 : 460,
+                      }}
+                    >
+                      {a.name}
+                    </span>
+                    {a.fk ? (
+                      <span className="meta" style={{ display: 'block', color: 'var(--accent-text)' }}>
+                        → {a.fk}
+                      </span>
+                    ) : null}
+                  </th>
+                  <td className="mono">{a.lore ?? '—'}</td>
+                  <td>
+                    <span className="mono">{a.notion ?? '—'}</span>
+                    {t?.limit ? (
+                      <span className="meta" style={{ display: 'block' }}>
+                        cap {n(t.limit)}
+                      </span>
+                    ) : null}
+                    {a.domain ? (
+                      <span className="meta" style={{ display: 'block' }}>
+                        {n(a.domain.length)} options
+                      </span>
+                    ) : null}
+                  </td>
+                  <td className="wrap">
+                    {flags.length === 0 ? (
+                      <span style={{ color: 'var(--text-faint)' }}>—</span>
+                    ) : (
+                      <span
+                        style={{ display: 'inline-flex', flexWrap: 'wrap', gap: '0.25rem' }}
+                      >
+                        {flags.map((f) => (
+                          <span key={f.text} className={f.accent ? 'pill pill-accent' : 'pill'}>
+                            {f.text}
+                          </span>
+                        ))}
+                      </span>
+                    )}
+                  </td>
+                  {notes ? (
+                    <td className="wrap" style={{ color: 'var(--text-tertiary)' }}>
+                      {a.note ?? ''}
+                    </td>
+                  ) : null}
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
       </div>
-      <div className="figure-body" style={{ padding: '1.25rem 1rem' }}>
-        {view === 'chen'
-          ? <ChenDiagram entities={entities} />
-          : <RelationalDiagram entities={entities} />}
-      </div>
-      <div className="figure-foot">
-        {view === 'chen' ? (
-          <span>
-            Double rectangle = weak entity · double diamond = identifying relationship ·
-            double line = total participation · (d) = disjoint specialization.
-            {weak ? ` ${weak.label} is identified by (${weak.naturalKey?.join(', ')}).` : ''}
-          </span>
-        ) : (
-          <span>
-            Underlined = primary key · dashed arrow = foreign key.{' '}
-            {relationships.filter((r) => r.card === 'M:N').length} many-to-many relationship
-            {relationships.filter((r) => r.card === 'M:N').length === 1 ? ' is' : 's are'} resolved
-            by a bridge table.
-          </span>
-        )}
-      </div>
-    </figure>
+      <p className="meta" style={{ marginTop: '0.5rem' }}>
+        Underlined = primary key · → = foreign key in the reimplementation, a relation property in
+        the vault · cap = the limit the Notion API enforces on that type · every name in the two
+        middle columns was read from <span className="mono">src/notion/schema.ts</span> at commit{' '}
+        {schema.source.commit}.
+      </p>
+    </>
   )
 }

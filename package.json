@@ -1,24 +1,24 @@
 {
-  "name": "dbms-agent-memory",
-  "version": "1.0.0",
+  "name": "lore-agent-memory-review",
+  "version": "2.0.0",
   "private": true,
   "type": "module",
-  "description": "Review paper on persistent memory architecture in agents, with evidence measured against PostgreSQL 18.3, SQLite 3.53 and a file-store baseline",
+  "description": "A review of Notion's Lore as a database design, with its schema reimplemented on SQLite and PostgreSQL and measured against an emulator of the documented Notion Data API",
   "scripts": {
-    "corpus": "node tools/corpus.mjs",
-    "embed": "node tools/embed.mjs",
+    "vault": "node tools/vault.mjs",
     "capture": "node tools/capture.mjs",
+    "deck": "node tools/deck.mjs",
     "qr": "node tools/qr.mjs https://dbms-memory.khe.money",
     "pdf": "node tools/pdf.mjs",
+    "deck-pdf": "node tools/deck-pdf.mjs",
     "epub": "node tools/epub.mjs",
     "previews": "node tools/previews.mjs",
     "assets": "node tools/assets.mjs",
-    "paper": "npm run corpus && npm run embed && npm run capture && npm run qr && npm --prefix web run build && npm run pdf && npm run epub && npm run previews && npm run assets && npm --prefix web run build"
+    "smoke": "node tools/exp/smoke.mjs",
+    "paper": "npm run vault && npm run capture && npm run qr && npm --prefix web run build && npm run pdf && npm run epub && npm run deck && npm run deck-pdf && npm run previews && npm run assets && npm --prefix web run build"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.4",
-    "@electric-sql/pglite-pgvector": "^0.0.5",
-    "@huggingface/transformers": "^4.2.0",
     "jszip": "^3.10.1",
     "puppeteer": "^24.10.2",
     "qrcode": "^1.5.4"

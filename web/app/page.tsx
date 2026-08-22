@@ -1,20 +1,34 @@
-import { getCapture, summarise, engine, bytes, ms, num, pct } from '@/lib/data'
-import { Figure, StatStrip, BarChart, ScalingChart, ParetoChart, HeatMatrix } from '@/components/charts'
+/* The paper.
+ *
+ * Prose and evidence in one file, deliberately. Every number the text states is
+ * read from `capture.json` through `lib/data`, so the sentence and the table
+ * cannot disagree — there is no number here for them to disagree about.
+ *
+ * The web edition, the PDF and the ePub all render from this page, so the three
+ * cannot drift either.
+ */
+
 import {
-  ValidationTable, EngineTable, CapabilityTable, ExpressibilityTable, StorageTable,
-  ScalingTable, PostFilterTable, DurabilityTable, ConcurrencyTable, AnomalyTable,
+  capture, schema, exp, limits, vault, classes, amp,
+  n, pct, times, bytes, duration, capturedOn, worstClass,
+  totalNotionRoundTrips, totalSqlStatements, workloadFloorSeconds,
+  totalProperties, unenforcedInvariants,
+} from '@/lib/data'
+import { Figure, StatStrip, BarChart, GroupedBars, ScalingChart } from '@/components/charts'
+import {
+  DatabaseTable, ApiLimitsTable, VaultTable, InjectedTable, WorkloadTable, ArmTable,
+  AmplificationTable, InvariantTable, NormalizationTable, FdTable, ConcurrencyTable,
+  TemporalTable, ResolutionTable, FullTextTable, WakeupTable, CeilingTable,
+  AnomalyTable, AliasTable, BitemporalTable, DanglingTable, ToolchainTable,
+  SourceTable, CorrectnessMatrix,
 } from '@/components/evidence'
+import { ErDiagram, SchemaTable } from '@/components/er-diagram'
 import {
-  MemoryLoopDiagram, IndexAnatomyDiagram, NormalizationLadder, PostFilterDiagram, StorageStackDiagram,
+  RoundTripDiagram, SurfaceDiagram, BitemporalDiagram, NormalizationLadder, ConstraintDiagram,
 } from '@/components/diagrams'
-import {
-  QueryClassExplorer, DenseFailureExplainer, BudgetExplorer, SchemaBrowser,
-} from '@/components/explainers'
-import { ErDiagram } from '@/components/er-diagram'
+import { QueryCostExplorer, VaultSizeExplorer, WriterRaceExplorer } from '@/components/explainers'
 import { Sidebar } from '@/components/sidebar'
 import { QrCode, QR_URL } from '@/components/qr-code'
-import { Icon } from '@/components/icons'
-import { AudienceProvider, AudienceToggle, Audience, MachineBlock } from '@/components/audience'
 
 export const dynamic = 'force-static'
 
@@ -28,31 +42,35 @@ const AUTHORS = {
 const TOC = [
   { id: 'abstract', label: 'Abstract' },
   { id: 'introduction', label: '1. Introduction' },
-  { id: 'memory', label: '2. What agent memory is' },
-  { id: 'practice', label: '3. How it is built today' },
+  { id: 'background', label: '2. Background' },
+  { id: 'system', label: '3. The system under review' },
   { id: 'model', label: '4. The data model' },
-  { id: 'method', label: '5. Methodology' },
-  { id: 'results', label: '6. Results' },
-  { id: 'sql', label: '7. Retrieval as a query' },
-  { id: 'explore', label: '8. Explore the evidence' },
-  { id: 'discussion', label: '9. Discussion' },
-  { id: 'limitations', label: '10. Threats to validity' },
-  { id: 'related', label: '11. Related work' },
-  { id: 'conclusion', label: '12. Conclusion' },
+  { id: 'normalisation', label: '5. Normalisation' },
+  { id: 'temporal', label: '6. The temporal model' },
+  { id: 'method', label: '7. Methodology' },
+  { id: 'expressibility', label: '8. Expressibility and cost' },
+  { id: 'integrity', label: '9. Integrity' },
+  { id: 'retrieval', label: '10. Retrieval' },
+  { id: 'ceiling', label: '11. The ceiling' },
+  { id: 'explore', label: '12. Explore the evidence' },
+  { id: 'discussion', label: '13. Discussion' },
+  { id: 'threats', label: '14. Threats to validity' },
+  { id: 'related', label: '15. Related work' },
+  { id: 'conclusion', label: '16. Conclusion' },
   { id: 'references', label: 'References' },
   { id: 'appendix', label: 'Appendices' },
 ]
 
 const DOWNLOADS = [
   {
-    href: '/persistent-memory-architecture-in-agents.pdf',
+    href: '/agent-memory-as-a-database-problem.pdf',
     label: 'PDF',
     meta: 'A4',
     preview: '/preview-pdf.png',
     previewAlt: 'First page of the typeset PDF',
   },
   {
-    href: '/persistent-memory-architecture-in-agents.epub',
+    href: '/agent-memory-as-a-database-problem.epub',
     label: 'ePub',
     meta: 'reflow',
     preview: '/preview-epub.png',
@@ -60,1504 +78,1580 @@ const DOWNLOADS = [
   },
 ]
 
-const R = {
-  codd: 'https://dl.acm.org/doi/10.1145/362384.362685',
-  chen: 'https://dl.acm.org/doi/10.1145/320434.320440',
-  elmasri: 'https://www.pearson.com/en-us/subject-catalog/p/fundamentals-of-database-systems/P200000003546',
-  ramakrishnan: 'https://pages.cs.wisc.edu/~dbbook/',
-  gray: 'https://dl.acm.org/doi/book/10.5555/573304',
-  aries: 'https://dl.acm.org/doi/10.1145/128765.128770',
-  bm25: 'https://www.staff.city.ac.uk/~sbrp622/papers/foundations_bm25_review.pdf',
-  rrf: 'https://dl.acm.org/doi/10.1145/1571941.1572114',
-  hnsw: 'https://arxiv.org/abs/1603.09320',
-  pgvector: 'https://github.com/pgvector/pgvector',
-  postgres: 'https://www.postgresql.org/docs/18/index.html',
-  sqlite: 'https://sqlite.org/lang.html',
-  fts5: 'https://sqlite.org/fts5.html',
-  pglite: 'https://pglite.dev/',
-  minilm: 'https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2',
-  tulving: 'https://alicekim.ca/EMSM72.pdf',
-  memgpt: 'https://arxiv.org/abs/2310.08560',
-  generative: 'https://arxiv.org/abs/2304.03442',
-  rag: 'https://arxiv.org/abs/2005.11401',
-  wal: 'https://www.postgresql.org/docs/18/wal-intro.html',
-  repo: 'https://github.com/HKTITAN/dbms-agent-memory',
-} as const
+/* Everything this repository produces, in one place. The slides and the dataset
+   are not in the sidebar's list because that list carries page previews and
+   these two have nothing to preview — but a reader who wants the numbers should
+   not have to clone the repository to get them. */
+const ARTIFACTS = [
+  { href: '/agent-memory-as-a-database-problem.pdf', name: 'The paper', meta: 'PDF · A4 · typeset from this page' },
+  { href: '/agent-memory-as-a-database-problem.epub', name: 'The paper', meta: 'ePub · reflows on an e-reader' },
+  { href: '/agent-memory-as-a-database-problem-slides.pdf', name: 'The talk', meta: 'PDF · 16:9 · one slide per page' },
+  /* Explicit filename rather than the directory: a static file under public/ is
+     served at its path, and whether `/slides/` resolves to its index is a
+     property of the host, not of the project. */
+  { href: '/slides/index.html', name: 'The talk, live', meta: 'HTML · arrow keys, or swipe' },
+  { href: '/capture.json', name: 'The dataset', meta: 'JSON · every number in the paper' },
+]
 
-function Cite({ n }: { n: number }) {
-  return <a href={`#ref-${n}`} className="cite" aria-label={`Reference ${n}`}>[{n}]</a>
+function Cite({ n: id }: { n: number }) {
+  return <a href={`#ref-${id}`} className="cite" aria-label={`Reference ${id}`}>[{id}]</a>
 }
 
-function A({ href, children }: { href: string; children: React.ReactNode }) {
-  return <a href={href} target="_blank" rel="noreferrer noopener">{children}</a>
-}
-
-export default function Page() {
-  const c = getCapture()
-  const s = summarise(c)
-  const captured = c.capturedAt.slice(0, 10)
-
-  const fts = engine('sqlite-fts')
-  const vec = engine('file-vec')
-  const hybrid = engine('pg-hybrid')
-  const hnsw = engine('pg-hnsw')
-  const gin = engine('pg-gin')
-
-  const live = c.engines.filter((e) => !e.failed)
-  const classCols = c.expressibility.classes.map((x) => ({
-    id: x.class,
-    label: x.class,
-    flag: x.similarityExpressible ? undefined : 'needs SQL',
-  }))
-  const engineRows = live.map((e) => ({ id: e.id, label: e.short, sub: e.engine }))
-
-  const pf1 = c.postFilter[0]
-  const pfLast = c.postFilter[c.postFilter.length - 1]
-  const rewrite = c.durability.find((d) => d.kind === 'file-rewrite')!
-  const appendOnly = c.durability.find((d) => d.kind === 'file-append')!
-
+/** A quotation from Lore's own source. The paper leans on these, so they are marked. */
+function Src({ file, children }: { file: string; children: React.ReactNode }) {
   return (
-    <AudienceProvider>
-      <div className="shell">
-        <header className="masthead no-print">
-          <span className="label" style={{ color: 'var(--text)', display: 'flex', alignItems: 'center', gap: '0.4375rem' }}>
-            <Icon name="book" size={16} />
-            Persistent Memory in Agents
-          </span>
-          <span style={{ display: 'flex', alignItems: 'center', gap: '0.875rem' }}>
-            <span className="meta">PostgreSQL 18.3 · SQLite {c.toolchain.sqlite}</span>
-            <AudienceToggle />
-          </span>
-        </header>
-
-        <div className="with-rail">
-          <Sidebar entries={TOC} downloads={DOWNLOADS} />
-
-          <main id="main">
-            {/* ------------------------------------------------ title block */}
-            <section className="section" style={{ paddingTop: '2rem', paddingBottom: '2rem' }}>
-              <p className="meta" style={{ marginBottom: '1.25rem' }}>Review paper</p>
-              <h1 className="display" style={{ maxWidth: '20ch' }}>
-                Persistent memory architecture in agents using DBMS
-              </h1>
-              <p className="lede" style={{ maxWidth: '58ch', marginTop: '1.5rem' }}>
-                An agent&apos;s long-term memory is a database. We measure ten ways of
-                building it — from a JSON file to PostgreSQL with a vector index — on one
-                corpus with known answers.
-              </p>
-
-              <div className="split" style={{ marginTop: '2.5rem', paddingTop: '1.75rem', borderTop: 'var(--rule)' }}>
-                <div>
-                  <p className="label" style={{ marginBottom: '0.375rem' }}>Submitted by</p>
-                  <p style={{ margin: 0, fontSize: '1.0625rem' }}>{AUTHORS.lead}</p>
-                  <p className="label" style={{ margin: '1.125rem 0 0.375rem' }}>Co-authors</p>
-                  <p style={{ margin: 0, fontSize: '1.0625rem' }}>{AUTHORS.co.join(', ')}</p>
-                  <p className="label" style={{ margin: '1.125rem 0 0.375rem' }}>Submitted to</p>
-                  <p style={{ margin: 0, fontSize: '1.0625rem' }}>{AUTHORS.submittedTo}</p>
-                </div>
-                <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-start' }}>
-                  <QrCode size={104} />
-                  <div>
-                    <p className="label" style={{ marginBottom: '0.25rem' }}>Read online</p>
-                    <p style={{ margin: 0 }}>
-                      <A href={QR_URL}>
-                        <span className="mono" style={{
-                          fontSize: '0.875rem', display: 'inline-flex', alignItems: 'center',
-                          minHeight: 24, paddingBlock: '0.25rem',
-                        }}>{AUTHORS.site}</span>
-                      </A>
-                    </p>
-                    <p className="caption" style={{ marginTop: '0.5rem', maxWidth: '26ch' }}>
-                      Corpus, harness and dataset at <A href={R.repo}>github.com/HKTITAN/dbms-agent-memory</A>.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </section>
-
-            {/* ---------------------------------------------------- abstract */}
-            <section id="abstract" className="section">
-              <h2 className="heading-24">Abstract</h2>
-
-              <Audience
-                human={
-                  <div className="prose body">
-                    <p>
-                      An AI agent that persists anything across sessions is operating a database,
-                      whether or not it calls it one. It writes records, indexes them, retrieves a
-                      subset under a budget, and must survive a crash without contradicting itself.
-                      Current practice largely ignores this: agent memory is typically a JSON file
-                      or a standalone vector index, and the properties a database management system
-                      was built to provide — a schema, a query language, transactions, concurrency
-                      control, recovery — are absent by construction.
-                    </p>
-                    <p>
-                      This paper asks what that costs. We model agent memory as an
-                      entity-relationship schema, normalise it to BCNF, and implement it across{' '}
-                      {s.engines} storage architectures spanning three families: file stores,
-                      SQLite {c.toolchain.sqlite} embedded, and PostgreSQL 18.3 with{' '}
-                      <code>pgvector</code> and GIN. All {s.engines} are measured on one corpus of{' '}
-                      {num(s.memories)} agent memories ({num(s.tokens)} tokens) rendered from{' '}
-                      {num(s.facts)} ground-truth facts, against {s.queries} labelled recall
-                      queries partitioned into {s.classCount} classes.
-                    </p>
-                    <p>
-                      Four results. First, <strong>most of a realistic recall workload is not a
-                      similarity problem</strong>: {pct(s.structuralShare, 1)} of our queries
-                      ({s.structuralQueries} of {c.expressibility.total}) require a predicate, a
-                      join or an aggregate, and no top-<em>k</em> similarity search can express
-                      them. Second, <strong>dense retrieval fails hardest on exactly what agents
-                      remember</strong> — identifiers. On queries naming a record by its key, the
-                      pure vector arm scores {vec.quality.byClass.find((b) => b.class === 'lexical')!.ndcg.toFixed(3)}{' '}
-                      nDCG against {fts.quality.byClass.find((b) => b.class === 'lexical')!.ndcg.toFixed(3)}{' '}
-                      for an inverted index; in every probe the embedding&apos;s top hit was a
-                      distractor that shared the query&apos;s grammatical shape, while the memory
-                      that answered it sat at median rank {s.denseFirstRank} of {num(s.memories)}.
-                      Third, <strong>the properties that separate the families are the classical
-                      ones</strong>: under eight concurrent writers the file store lost{' '}
-                      {s.lostUpdates} of {c.concurrency.results.file.expected} updates
-                      ({pct(s.lostUpdates / c.concurrency.results.file.expected, 1)}) where both
-                      DBMS arms lost none, and a crash during a whole-document rewrite left the
-                      entire store unreadable in {rewrite.unreadable} of {rewrite.trials} trials.
-                      Fourth, <strong>normalisation is not bookkeeping here</strong>: a fact is
-                      restated across {s.restatementsMean} memories on average, so a correction
-                      applied through top-{c.k} retrieval leaves {s.staleAfterRepair}% of the
-                      restatements asserting the old value — contradictions the agent will later
-                      retrieve and believe.
-                    </p>
-                    <p>
-                      The practical conclusion is narrower than &ldquo;use a database&rdquo;. The
-                      best-scoring arm was {s.best.label} at {s.bestNdcg.toFixed(3)} nDCG, but{' '}
-                      {fts.label} reached {fts.quality.overall.ndcg.toFixed(3)} at{' '}
-                      {ms(fts.quality.overall.p50Ms)} median latency and{' '}
-                      {fts.bytesPerMemory} bytes per memory — {s.vectorOverhead}× less storage than
-                      the vector-bearing arms, whose embeddings dominate the store. Vectors earn
-                      their cost on paraphrase and nowhere else.
-                    </p>
-                  </div>
-                }
-                machine={
-                  <div>
-                    <p className="caption" style={{ marginTop: 0, marginBottom: '0.875rem' }}>
-                      The same claims as records — what an agent consuming this paper would read.
-                    </p>
-                    <MachineBlock
-                      caption="abstract.findings"
-                      data={{
-                        study: {
-                          subject: 'persistent agent memory',
-                          engines: s.engines,
-                          postgres: c.toolchain.postgres.split(' on ')[0],
-                          sqlite: c.toolchain.sqlite,
-                          embedding: c.toolchain.embeddingModel,
-                          capturedAt: c.capturedAt,
-                        },
-                        corpus: {
-                          memories: s.memories,
-                          facts: s.facts,
-                          sessions: s.sessions,
-                          tokens: s.tokens,
-                          queries: s.queries,
-                          queryClasses: s.classCount,
-                        },
-                        findings: [
-                          {
-                            id: 'not-a-similarity-problem',
-                            claim: 'Most agent recall requires relational operators, not similarity.',
-                            evidence: {
-                              structuralQueries: s.structuralQueries,
-                              totalQueries: c.expressibility.total,
-                              structuralShare: s.structuralShare,
-                              classes: s.structuralClasses,
-                            },
-                          },
-                          {
-                            id: 'dense-fails-on-identifiers',
-                            claim: 'Dense retrieval is near-random on queries naming a record by key.',
-                            evidence: {
-                              vectorLexicalNdcg: s.vecLexicalNdcg,
-                              invertedLexicalNdcg: s.ftsLexicalNdcg,
-                              medianRankOfFirstRelevant: s.denseFirstRank,
-                              corpusSize: s.memories,
-                              topHitWasDistractorRate: s.denseDistractorRate,
-                            },
-                          },
-                          {
-                            id: 'acid-properties-decide',
-                            claim: 'Durability and concurrency separate the families, not retrieval tuning.',
-                            evidence: {
-                              lostUpdatesFile: c.concurrency.results.file.lost,
-                              lostUpdatesSqlite: c.concurrency.results.sqlite.lost,
-                              lostUpdatesPostgres: c.concurrency.results.postgres.lost,
-                              rewriteUnreadableTrials: `${rewrite.unreadable}/${rewrite.trials}`,
-                              appendUnreadableTrials: `${appendOnly.unreadable}/${appendOnly.trials}`,
-                            },
-                          },
-                          {
-                            id: 'denormalisation-produces-contradiction',
-                            claim: 'An unnormalised memory store cannot be corrected atomically.',
-                            evidence: {
-                              meanRestatementsPerFact: c.anomaly.restatementsPerFact.mean,
-                              maxRestatementsPerFact: c.anomaly.restatementsPerFact.max,
-                              rowsToUpdateNormalised: 1,
-                              staleFractionAfterTopKRepair: c.anomaly.topKRepair.staleFraction,
-                            },
-                          },
-                        ],
-                      }}
-                    />
-                  </div>
-                }
-              />
-
-              <div style={{ marginTop: '2rem' }}>
-                <StatStrip
-                  stats={[
-                    { value: num(s.memories), label: 'Memories in corpus' },
-                    { value: String(s.engines), label: 'Architectures measured' },
-                    { value: pct(s.structuralShare, 0), label: 'Queries needing SQL' },
-                    { value: s.vecLexicalNdcg.toFixed(3), label: 'Vector nDCG on identifiers' },
-                    { value: `${s.staleAfterRepair}`, unit: '%', label: 'Stale after top-k repair' },
-                  ]}
-                />
-              </div>
-              <p className="caption">
-                All figures produced by <code>tools/capture.mjs</code> on {c.machine.cpu},{' '}
-                {c.machine.cores} cores, {c.machine.totalMemGB} GB, {c.machine.platform}/{c.machine.arch}.
-                Captured {captured}. Embeddings from{' '}
-                <A href={R.minilm}>{c.toolchain.embeddingModel}</A> ({c.toolchain.embeddingDim} d);
-                token counts from the {c.toolchain.tokenizer} tokenizer.
-              </p>
-            </section>
-
-            {/* ------------------------------------------------ introduction */}
-            <section id="introduction" className="section">
-              <h2 className="heading-24">1. Introduction</h2>
-              <div className="prose body">
-                <p>
-                  A language model has no memory. Each request is answered from the tokens in front
-                  of it, and when the context window closes, everything in it is gone. An{' '}
-                  <em>agent</em> — a model wrapped in a loop that runs over hours or months — has to
-                  supply that memory from outside. It writes down what happened, and later it reads
-                  some of it back.
-                </p>
-                <p>
-                  Stated that way, the problem is immediately familiar. Records are inserted.
-                  They are indexed so they can be found again. A query selects a subset under a
-                  budget. Concurrent writers must not overwrite each other. A crash must not
-                  leave the store asserting something that was never true. This is the problem
-                  a database management system exists to solve, and it has been studied for
-                  fifty years<Cite n={1} /><Cite n={3} />.
-                </p>
-                <p>
-                  Agent frameworks have largely arrived at a different answer. Memory is usually
-                  a file of JSON, or a vector index holding one embedding per remembered
-                  utterance, retrieved by cosine similarity. Neither has a schema, a query
-                  language, a transaction, or a recovery protocol. The question this paper asks
-                  is direct: <strong>what does an agent lose by storing its memory outside a
-                  DBMS, and which of the DBMS&apos;s properties actually matter?</strong>
-                </p>
-                <p>
-                  We answer it by measurement rather than argument. We build one corpus of agent
-                  memories with known ground truth, implement {s.engines} storage architectures
-                  over it, and score them on the same {s.queries} queries — then subject the
-                  same three families to a crash, to concurrent writers, and to a fact that
-                  changes after it has been remembered {s.restatementsMean} times.
-                </p>
-              </div>
-
-              <div style={{ marginTop: '1.75rem' }}>
-                <MemoryLoopDiagram />
-              </div>
-              <p className="caption">
-                Figure 1. The agent memory cycle. Every arrow crossing the store boundary is a
-                database operation; the context-window budget on the recall path is what makes
-                retrieval a top-<em>k</em> problem rather than a scan.
-              </p>
-            </section>
-
-            {/* --------------------------------------------------- 2. memory */}
-            <section id="memory" className="section">
-              <h2 className="heading-24">2. What agent memory is</h2>
-              <div className="prose body">
-                <p>
-                  The word covers three different things, and conflating them is the first source
-                  of confusion. The division follows Tulving&apos;s<Cite n={12} /> and is now
-                  standard in agent architectures<Cite n={13} />:
-                </p>
-                <ul style={{ paddingLeft: '1.15rem', margin: '0 0 1rem' }}>
-                  {c.schema.entities.find((e) => e.specialization)?.specialization?.subtypes.map((t) => (
-                    <li key={t.name} style={{ marginBottom: '0.375rem' }}>
-                      <strong>{t.name}</strong> — {t.blurb}
-                    </li>
-                  ))}
-                </ul>
-                <p>
-                  In the relational model these are not three stores. They are one relation with a
-                  discriminator: a disjoint, total specialization on <code>kind</code>. That is a
-                  design decision with consequences we return to in §4, and it is the first place
-                  where having a data model at all changes what the system can do — a query can ask
-                  for procedural memory only, and the engine can use an index to answer it.
-                </p>
-                <p>
-                  What an agent actually writes is narrower than &ldquo;everything it saw&rdquo;.
-                  In our corpus a memory is a short natural-language restatement of one fact,
-                  produced during one turn of one session. It is roughly{' '}
-                  {c.corpus.stats.meanTokensPerMemory} tokens. It carries a provenance
-                  (<code>{c.corpus.sampleMemories[0]?.source}</code> and similar), a confidence,
-                  a position in time, and — critically — it may later be contradicted by something
-                  the agent learns afterwards.
-                </p>
-              </div>
-
-              <div className="table-wrap" style={{ marginBlock: '1.75rem' }}>
-                <table>
-                  <caption>
-                    Table 1. Six memories from the corpus, as stored. These are the rows every
-                    architecture in this paper was given.
-                  </caption>
-                  <thead>
-                    <tr>
-                      <th scope="col">id</th>
-                      <th scope="col">session</th>
-                      <th scope="col" className="n">turn</th>
-                      <th scope="col">kind</th>
-                      <th scope="col">body</th>
-                      <th scope="col" className="n">day</th>
-                      <th scope="col" className="n">tokens</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {c.corpus.sampleMemories.map((m) => (
-                      <tr key={m.id}>
-                        <th scope="row" className="mono">{m.id}</th>
-                        <td className="mono">{m.sessionId}</td>
-                        <td className="n mono">{m.turn}</td>
-                        <td className="mono">{m.kind}</td>
-                        <td style={{ minWidth: '22rem' }}>{m.body}</td>
-                        <td className="n mono">{m.day}</td>
-                        <td className="n mono">{m.tokens}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </section>
-
-            {/* ------------------------------------------------- 3. practice */}
-            <section id="practice" className="section">
-              <h2 className="heading-24">3. How agent memory is built today</h2>
-              <div className="prose body">
-                <p>
-                  Two architectures dominate, and we implement both rather than describe them.
-                </p>
-                <p>
-                  <strong>The file store.</strong> Memories are appended to a JSON or JSONL file
-                  and recall reads the whole thing, scoring by keyword overlap. It has no index,
-                  so recall is linear in the corpus; it has no transaction, so a crash mid-write is
-                  whatever the filesystem left behind; and it has no concurrency control, so two
-                  writers race. We implement the careful variant (append-only) and, for the
-                  durability experiment, the common one (rewrite the whole document on every
-                  change).
-                </p>
-                <p>
-                  <strong>The vector index.</strong> Each memory is embedded once and recall is a
-                  top-<em>k</em> nearest-neighbour search in that space<Cite n={9} />. This is the
-                  architecture most often described as &ldquo;giving the agent memory&rdquo;, and
-                  it is genuinely good at one thing: finding a memory that means the same as the
-                  query while sharing none of its words. We implement it twice — once with no
-                  filtering at all, and once with metadata post-filtering, because every production
-                  vector store offers the latter and comparing against the former alone would be a
-                  straw man.
-                </p>
-                <p>
-                  Against these we put the same logical schema in two database engines: SQLite{' '}
-                  {c.toolchain.sqlite} in process<Cite n={7} />, and PostgreSQL 18.3<Cite n={6} />{' '}
-                  with the <A href={R.pgvector}>pgvector</A><Cite n={10} /> extension. Each family
-                  is measured with progressively more indexing, so the paper can attribute a
-                  result to an access method rather than to a product.
-                </p>
-              </div>
-
-              <div style={{ marginTop: '1.75rem' }}>
-                <CapabilityTable capture={c} n={2} />
-              </div>
-
-              <div className="prose body" style={{ marginTop: '1.5rem' }}>
-                <p>
-                  Table 2 is the paper&apos;s argument in one grid, and everything after it is the
-                  measurement of what those columns are worth.
-                </p>
-              </div>
-            </section>
-
-            {/* ---------------------------------------------------- 4. model */}
-            <section id="model" className="section">
-              <h2 className="heading-24">4. The data model</h2>
-              <div className="prose body">
-                <p>
-                  Before anything can be measured, the memory has to have a shape. We give it one
-                  using the entity-relationship model<Cite n={2} />, then normalise it.
-                </p>
-
-                <h3 className="heading-20" style={{ marginTop: '1.75rem' }}>4.1 Entities and relationships</h3>
-                <p>
-                  Seven entities. The one that matters is <code>MEMORY</code>, and it is a{' '}
-                  <strong>weak entity</strong>: a memory has no identity apart from the session
-                  that produced it, so its natural key is{' '}
-                  <code>(session_id, turn_no)</code> with <code>turn_no</code> as the partial key.
-                  This is not a modelling nicety. A vector store treats each memory as a
-                  free-floating document with a global identity, and every question of the form
-                  &ldquo;what did I learn <em>in that session</em>&rdquo; becomes unanswerable as a
-                  direct consequence.
-                </p>
-              </div>
-
-              <div style={{ marginTop: '1.5rem' }}>
-                <ErDiagram entities={c.schema.entities} relationships={c.schema.relationships} />
-              </div>
-              <p className="caption">
-                Figure 2. The conceptual model in Chen notation, and the same model as tables.
-                Both views are generated from <code>engines/schema.mjs</code> — the file the
-                loaders execute — so every box is a table that was created and every dashed edge a
-                foreign key that was enforced during measurement.
-              </p>
-
-              <div className="prose body" style={{ marginTop: '1.75rem' }}>
-                <p>Three features of the diagram carry weight later:</p>
-                <p>
-                  <strong>The identifying relationship</strong> <em>records</em> is drawn double
-                  because <code>SESSION</code> supplies part of <code>MEMORY</code>&apos;s key.
-                  Participation is total on both ends: a memory without a session cannot exist.
-                </p>
-                <p>
-                  <strong>The recursive relationship</strong> <em>supersedes</em> runs from{' '}
-                  <code>MEMORY</code> to itself. It records that a later memory corrects an
-                  earlier one, and it is the structure that distinguishes what the agent{' '}
-                  <em>currently believes</em> from what it has <em>ever written down</em>. No
-                  similarity function can recover it, because a superseded memory matches a query
-                  at least as well as its replacement — usually better, since the replacement
-                  carries the word &ldquo;correction&rdquo;.
-                </p>
-                <p>
-                  <strong>The specialization</strong> on <code>kind</code> is disjoint and total:
-                  every memory is exactly one of episodic, semantic or procedural.
-                </p>
-
-                <h3 className="heading-20" style={{ marginTop: '2.25rem' }}>4.2 Normalisation</h3>
-                <p>
-                  The file baselines store a self-contained record per memory: session metadata,
-                  agent model, entity list and the restated fact all inline. That is the
-                  unnormalised form, and walking it up to BCNF names exactly what each file
-                  architecture is giving up.
-                </p>
-              </div>
-
-              <div style={{ marginTop: '1.5rem' }}>
-                <NormalizationLadder steps={c.schema.normalization} />
-              </div>
-              <p className="caption">
-                Figure 3. From the unnormalised memory blob to BCNF. The final step is the one
-                that decides an agent&apos;s behaviour rather than its disk usage:{' '}
-                <code>fact_id → fact_text</code> is a dependency on a non-key attribute, and
-                leaving it in place is what §6.10 measures.
-              </p>
-
-              <div className="prose body" style={{ marginTop: '1.75rem' }}>
-                <p>
-                  The functional dependencies that survive in the final schema are the ones a key
-                  determines and nothing else:
-                </p>
-              </div>
-              <div className="table-wrap" style={{ marginBlock: '1.25rem' }}>
-                <table>
-                  <caption>Table 3. Functional dependencies in the BCNF schema. Every determinant is a candidate key.</caption>
-                  <thead>
-                    <tr>
-                      <th scope="col">Relation</th>
-                      <th scope="col">Determinant</th>
-                      <th scope="col">Determines</th>
-                      <th scope="col">Note</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {c.schema.fds.map((f) => (
-                      <tr key={`${f.in}-${f.lhs}`}>
-                        <th scope="row" className="mono">{f.in}</th>
-                        <td className="mono">{f.lhs}</td>
-                        <td className="mono" style={{ fontSize: '0.8125rem' }}>{f.rhs}</td>
-                        <td>{f.note ?? '—'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </section>
-
-            {/* ----------------------------------------------- 5. methodology */}
-            <section id="method" className="section">
-              <h2 className="heading-24">5. Methodology</h2>
-              <div className="prose body">
-                <h3 className="heading-20" style={{ marginTop: '1.5rem' }}>5.1 Ground truth that is not circular</h3>
-                <p>
-                  A retrieval benchmark is only as good as its labels, and labels chosen by looking
-                  at results are worthless. We invert the usual order. First we build a world of
-                  entities — services, incidents, configuration records, decisions, people. From it
-                  we derive {num(s.facts)} <strong>facts</strong>, each a subject-predicate-object
-                  triple with a validity interval. Each fact is then <em>rendered</em> into one or
-                  more memories: short natural-language restatements an agent would plausibly have
-                  written, in different surface forms, scattered across {num(s.sessions)} sessions.
-                </p>
-                <p>
-                  Relevance is therefore definitional rather than judged: the memories relevant to
-                  a query about a fact are exactly the memories rendered from that fact, intersected
-                  with the query&apos;s structural predicate. Nothing is scored by eye. The
-                  generator is seeded, so the corpus reproduces byte for byte.
-                </p>
-                <p>
-                  Two deliberate contaminants make the benchmark hard. <strong>Distractors</strong>{' '}
-                  ({num(c.corpus.stats.distractors)} memories, {pct(c.corpus.stats.distractors / s.memories, 0)}{' '}
-                  of the corpus) mention a record&apos;s identifier while asserting nothing about
-                  it — the agent-memory equivalent of &ldquo;checked X, unrelated&rdquo;. And{' '}
-                  <strong>supersessions</strong> ({num(c.corpus.stats.superseded)} memories) revise
-                  a fact after it was first recorded, so the best-matching text and the currently
-                  true statement are different rows.
-                </p>
-
-                <h3 className="heading-20" style={{ marginTop: '1.75rem' }}>5.2 Query classes</h3>
-                <p>
-                  The {s.queries} queries are partitioned into {s.classCount} classes chosen to
-                  stress different machinery. The column that matters is the last one: whether the
-                  query can be answered by a top-<em>k</em> similarity search alone, with no
-                  predicate, no join and no aggregate.
-                </p>
-              </div>
-
-              <div style={{ marginTop: '1.5rem' }}>
-                <ExpressibilityTable capture={c} n={4} />
-              </div>
-
-              <div className="prose body" style={{ marginTop: '1.75rem' }}>
-                <h3 className="heading-20">5.3 Validating the corpus before using it</h3>
-                <p>
-                  A benchmark that claims &ldquo;lexical queries share identifiers and semantic
-                  ones do not&rdquo; should demonstrate it rather than assert it, because if the
-                  property fails, every downstream comparison measures nothing. Table 5 reports
-                  what the corpus actually has.
-                </p>
-              </div>
-
-              <div style={{ marginTop: '1.5rem' }}>
-                <ValidationTable capture={c} n={5} />
-              </div>
-
-              <div className="prose body" style={{ marginTop: '1.75rem' }}>
-                <p>
-                  The design holds where it needs to. Lexical queries share the target&apos;s
-                  identifier but sit at cosine{' '}
-                  {c.corpus.validation.byClass.find((b) => b.class === 'lexical')!.meanCosine.toFixed(3)},
-                  barely above the {c.corpus.validation.randomPairCosine} random-pair baseline —
-                  they name the record without describing it. Semantic queries invert exactly that:
-                  cosine {c.corpus.validation.byClass.find((b) => b.class === 'semantic')!.meanCosine.toFixed(3)}{' '}
-                  with an identifier overlap of{' '}
-                  {c.corpus.validation.byClass.find((b) => b.class === 'semantic')!.meanIdentifierOverlap.toFixed(2)}.
-                  A retriever that wins one and loses the other is telling us about its access
-                  method, which is the point.
-                </p>
-
-                <h3 className="heading-20" style={{ marginTop: '1.75rem' }}>5.4 Instrumentation</h3>
-                <p>
-                  One harness, <code>tools/capture.mjs</code>, drives every measurement into a
-                  single JSON document. Engines return an ordered list of memory ids and nothing
-                  else; precision, recall, MRR and nDCG are computed centrally, so no engine can
-                  flatter itself. Latency is the median of three timed runs after a warm-up.
-                  Embeddings are computed once and shared, so a retrieval difference can never be
-                  an embedding difference. Storage is read from the engines&apos; own accounting —{' '}
-                  <code>dbstat</code> for SQLite, <code>pg_class</code> for Postgres — not from
-                  file sizes.
-                </p>
-                <p>
-                  Both engines run without a server: SQLite through Node&apos;s built-in{' '}
-                  <code>node:sqlite</code>, and PostgreSQL through <A href={R.pglite}>PGlite</A>
-                  <Cite n={11} />, a genuine Postgres 18.3 build compiled to WebAssembly. The
-                  whole study therefore reproduces from <code>npm install</code>, at the cost
-                  discussed in §10.
-                </p>
-              </div>
-            </section>
-
-            {/* -------------------------------------------------- 6. results */}
-            <section id="results" className="section">
-              <h2 className="heading-24">6. Results</h2>
-
-              <h3 className="heading-20" style={{ marginTop: '1.75rem' }}>6.1 Overall retrieval quality</h3>
-              <div className="prose body">
-                <p>
-                  Aggregated over all {s.queries} queries at k={c.k}, the ordering is already
-                  informative — and not the ordering the current literature would predict.
-                </p>
-              </div>
-
-              <div style={{ marginTop: '1.5rem' }}>
-                <EngineTable capture={c} n={6} />
-              </div>
-
-              <div className="grid-2" style={{ marginTop: '1.75rem' }}>
-                <Figure
-                  title="Overall retrieval quality"
-                  meta={`nDCG@${c.k}, ${s.queries} queries`}
-                  caption={<>Figure 4. Every arm on the same corpus and the same labels. The two pure-similarity arms are last.</>}
-                >
-                  <BarChart
-                    unit=""
-                    tableLabel="nDCG by engine"
-                    format={(n) => n.toFixed(3)}
-                    max={1}
-                    data={live.map((e) => ({
-                      label: e.short,
-                      value: e.quality.overall.ndcg,
-                      emphasis: e.id === s.best.id,
-                    }))}
-                  />
-                </Figure>
-                <Figure
-                  title="Median recall latency"
-                  meta="p50, log scale"
-                  caption={<>Figure 5. The unindexed file scan is {s.scanSpeedup}× slower than an inverted index over the same {num(s.memories)} memories.</>}
-                >
-                  <BarChart
-                    unit="ms"
-                    tableLabel="p50 latency by engine"
-                    format={(n) => n.toFixed(2)}
-                    data={live.map((e) => ({
-                      label: e.short,
-                      value: e.quality.overall.p50Ms,
-                      emphasis: e.id === 'sqlite-fts',
-                    }))}
-                  />
-                </Figure>
-              </div>
-
-              <h3 className="heading-20" style={{ marginTop: '2.5rem' }}>
-                6.2 The central result: quality depends on the question
-              </h3>
-              <div className="prose body">
-                <p>
-                  Aggregate scores hide the finding. Broken down by query class, the arms do not
-                  merely differ in degree — the ordering inverts, and each architecture has classes
-                  on which it is essentially unable to answer.
-                </p>
-              </div>
-
-              <div style={{ marginTop: '1.5rem' }}>
-                <HeatMatrix
-                  rows={engineRows}
-                  cols={classCols}
-                  value={(r, col) =>
-                    c.engines.find((e) => e.id === r)?.quality.byClass.find((b) => b.class === col)?.ndcg ?? null}
-                  format={(n) => n.toFixed(2)}
-                  legendLabel={`nDCG@${c.k}`}
-                  caption="Columns marked “needs SQL” cannot be expressed as a top-k similarity search at all."
-                />
-              </div>
-              <p className="caption">
-                Figure 6. nDCG@{c.k} by engine and query class. Reading down a marked column shows
-                what a predicate is worth; reading across the <code>{vec.short}</code> row shows
-                what its absence costs.
-              </p>
-
-              <div className="prose body" style={{ marginTop: '1.75rem' }}>
-                <p>
-                  Three things happen in that grid.
-                </p>
-                <p>
-                  <strong>Pure similarity collapses on structural questions.</strong> Averaged over
-                  the {s.structuralClasses.length} classes requiring a predicate, join or
-                  aggregate, {vec.short} reaches {s.vecStructuralMean.toFixed(3)} nDCG. Its
-                  provenance score — &ldquo;everything I recorded during session S&rdquo; — is{' '}
-                  {vec.quality.byClass.find((b) => b.class === 'provenance')!.ndcg.toFixed(3)},
-                  because the question has no similarity content whatsoever. The answer is defined
-                  by a foreign key.
-                </p>
-                <p>
-                  <strong>The same index inside a DBMS recovers most of it.</strong>{' '}
-                  {hnsw.short} uses the identical embeddings and an HNSW graph, and averages{' '}
-                  {s.hnswStructuralMean.toFixed(3)} on those classes — reaching{' '}
-                  {hnsw.quality.byClass.find((b) => b.class === 'provenance')!.ndcg.toFixed(3)} on
-                  provenance, because the planner applies the predicate and the vector index is
-                  simply not consulted. What changed is not the retrieval; it is that a query
-                  language existed to state the constraint.
-                </p>
-                <p>
-                  <strong>Adding a vector index can make things worse.</strong> On{' '}
-                  <em>currency</em> — &ldquo;what is the current position on X&rdquo; — the
-                  B-tree arms score{' '}
-                  {engine('sqlite-btree').quality.byClass.find((b) => b.class === 'currency')!.ndcg.toFixed(3)},
-                  because <code>superseded_by IS NULL</code> is exactly the right answer. The
-                  hybrid arms score{' '}
-                  {hybrid.quality.byClass.find((b) => b.class === 'currency')!.ndcg.toFixed(3)}:
-                  rank fusion re-ranks away from a filter that was already correct. Hybrid retrieval
-                  is not uniformly better, and treating it as a default costs accuracy on precisely
-                  the questions a predicate settles.
-                </p>
-                <p>
-                  The <em>aggregate</em> class makes the point without any ranking at all. Asked
-                  how many times a fact was recorded, {s.exactCountEngines} of the {s.engines} arms
-                  return the exact cardinality — every arm with a{' '}
-                  <code>SELECT COUNT(*) … GROUP BY</code>. The file arms return none, and cannot:
-                  a top-<em>k</em> list truncated at {c.k} is the wrong shape of answer to a
-                  counting question.
-                </p>
-              </div>
-
-              <h3 className="heading-20" style={{ marginTop: '2.5rem' }}>
-                6.3 Why dense retrieval fails on identifiers
-              </h3>
-              <div className="prose body">
-                <p>
-                  The lexical column deserves its own explanation, because a score of{' '}
-                  {s.vecLexicalNdcg.toFixed(3)} invites the reader to assume a bug. It is not a
-                  bug, and the mechanism is worth seeing.
-                </p>
-                <p>
-                  In {pct(s.denseDistractorRate ?? 0, 0)} of probed queries, the memory the
-                  embedding ranked first was a <em>distractor</em> — a record that mentions the
-                  identifier while explicitly disclaiming it. The memory that actually answered the
-                  question sat at a median rank of {s.denseFirstRank} out of {num(s.memories)}.
-                </p>
-                <p>
-                  The reason is structural. &ldquo;What do we know about ADR-297?&rdquo; is a
-                  question <em>about a lookup</em>, and the distractor is a sentence{' '}
-                  <em>about a lookup</em>. They share their grammatical shape, which is most of
-                  what survives mean-pooling into {c.toolchain.embeddingDim} dimensions. The
-                  identifier itself is a handful of subword pieces averaged in with everything
-                  else, and it carries almost no weight. An inverted index has the opposite bias:
-                  a rare term is the most informative thing in the query, which is why the same
-                  corpus yields {s.ftsLexicalNdcg.toFixed(3)} nDCG for BM25.
-                </p>
-              </div>
-
-              <div className="print-omit" style={{ marginTop: '1.75rem' }}>
-                <DenseFailureExplainer capture={c} />
-              </div>
-
-              <div style={{ marginTop: '1.75rem' }}>
-                <IndexAnatomyDiagram />
-              </div>
-              <p className="caption">
-                Figure 7. What each access method physically is, and the question shape it cannot
-                answer. The per-class results in Figure 6 follow from these three structures.
-              </p>
-
-              <h3 className="heading-20" style={{ marginTop: '2.5rem' }}>
-                6.4 Metadata filtering does not close the gap
-              </h3>
-              <div className="prose body">
-                <p>
-                  The obvious objection to §6.2 is that production vector stores support metadata
-                  filters. They do — but as a <em>post</em>-filter over an already-ranked candidate
-                  list, and that is a different operation from a predicate the planner may apply
-                  first.
-                </p>
-                <p>
-                  With no overfetch, asking for {c.k} results returns{' '}
-                  {pf1.meanSurvivingSlots} on average: {pct(pf1.slotFillRate, 1)} of the requested
-                  slots are filled, because the filter can only remove candidates, never introduce
-                  them. Raising the overfetch factor helps, but slowly and at a price — at ×
-                  {pfLast.overfetch} the search touches {pct(pfLast.scanFraction, 1)} of the corpus
-                  to reach recall {pfLast.recall.toFixed(3)}, which is to say it is becoming the
-                  sequential scan the index was adopted to avoid.
-                </p>
-              </div>
-
-              <div style={{ marginTop: '1.5rem' }}>
-                <PostFilterDiagram capture={c} />
-              </div>
-              <p className="caption">
-                Figure 8. Post-filtering against a selective predicate. The slots are allocated by
-                similarity before the constraint is consulted, so the constraint can only empty them.
-              </p>
-
-              <div style={{ marginTop: '1.75rem' }}>
-                <PostFilterTable capture={c} n={7} />
-              </div>
-
-              <h3 className="heading-20" style={{ marginTop: '2.5rem' }}>
-                6.5 What the planner actually did
-              </h3>
-              <div className="prose body">
-                <p>
-                  The claim that a DBMS &ldquo;uses an index&rdquo; is checkable. Both engines
-                  report their plans, and the harness captures one per query class per engine.
-                  Two are worth reading side by side.
-                </p>
-              </div>
-
-              <div className="grid-2" style={{ marginTop: '1.5rem' }}>
-                <div className="code-block">
-                  <div className="code-head">
-                    <span>{gin.short} · provenance</span>
-                    <span>EXPLAIN ANALYZE</span>
-                  </div>
-                  <pre><code>{gin.plans.find((p) => p.class === 'provenance')?.text ?? '—'}</code></pre>
-                </div>
-                <div className="code-block">
-                  <div className="code-head">
-                    <span>{fts.short} · provenance</span>
-                    <span>EXPLAIN QUERY PLAN</span>
-                  </div>
-                  <pre><code>{fts.plans.find((p) => p.class === 'provenance')?.text ?? '—'}</code></pre>
-                </div>
-              </div>
-              <p className="caption">
-                Figure 9. The same question, two engines. Both resolve the session predicate through
-                a B-tree rather than scanning, which is why both answer a class the similarity arms
-                score near zero on.
-              </p>
-
-              <h3 className="heading-20" style={{ marginTop: '2.5rem' }}>6.6 Storage economics</h3>
-              <div className="prose body">
-                <p>
-                  The corpus is {bytes(c.corpus.stats.bytes)} of text. What the architectures cost
-                  to store it varies by more than an order of magnitude, and the reason is entirely
-                  the embeddings.
-                </p>
-              </div>
-
-              <div style={{ marginTop: '1.5rem' }}>
-                <StorageStackDiagram capture={c} />
-              </div>
-              <p className="caption">
-                Figure 10. Bytes by role. At {c.toolchain.embeddingDim} dimensions in float32, one
-                vector is {c.toolchain.embeddingDim * 4} bytes — larger than the memory it
-                describes, which averages {c.corpus.stats.meanTokensPerMemory} tokens.
-              </p>
-
-              <div style={{ marginTop: '1.75rem' }}>
-                <StorageTable capture={c} n={8} />
-              </div>
-
-              <div className="prose body" style={{ marginTop: '1.75rem' }}>
-                <p>
-                  {fts.label} holds the corpus in {fts.bytesPerMemory} bytes per memory;{' '}
-                  {hybrid.label} needs {hybrid.bytesPerMemory}, a factor of {s.vectorOverhead}. For
-                  an agent whose memory grows monotonically, that ratio is the difference between a
-                  store that fits on the machine and one that does not — and §6.2 shows the
-                  vectors buying quality on one class out of {s.classCount}.
-                </p>
-              </div>
-
-              <h3 className="heading-20" style={{ marginTop: '2.5rem' }}>6.7 Durability under crash</h3>
-              <div className="prose body">
-                <p>
-                  Retrieval quality is the interesting half of the problem; not losing the memory
-                  is the necessary half. We killed each writer with an uncatchable signal partway
-                  through sustained writes, then reopened the store and asked what survived. The
-                  clock starts only after the store holds a durable baseline, so this measures a
-                  crash during writing rather than during initialisation.
-                </p>
-              </div>
-
-              <div style={{ marginTop: '1.5rem' }}>
-                <DurabilityTable capture={c} n={9} />
-              </div>
-
-              <div className="prose body" style={{ marginTop: '1.75rem' }}>
-                <p>
-                  The honest result is that <strong>append-only files are fine</strong>. Across{' '}
-                  {appendOnly.trials} kills the JSONL store never lost a parseable line: appending
-                  is close to atomic at these sizes, and the failure mode is a missing tail rather
-                  than a corrupt file.
-                </p>
-                <p>
-                  The common file pattern is not fine. Holding memory as one JSON document and
-                  rewriting it on every change means the file is briefly neither the old state nor
-                  the new one — and in {rewrite.unreadable} of {rewrite.trials} trials the crash
-                  landed inside that window and left a document that no longer parses. The loss is
-                  not the last record. It is all {num(rewrite.meanDurable)} of them, because the
-                  store is a single value.
-                </p>
-                <p>
-                  Both DBMS arms recovered to a committed boundary in every trial, with SQLite&apos;s{' '}
-                  <code>integrity_check</code> returning{' '}
-                  <code>{c.durability.find((d) => d.kind === 'sqlite')?.integrity ?? 'ok'}</code>{' '}
-                  and Postgres replaying its write-ahead log<Cite n={4} /> on open. This is not a
-                  surprising result; it is a fifty-year-old result<Cite n={5} />. It is included
-                  because the architecture that gets it wrong is the one currently in widest use.
-                </p>
-              </div>
-
-              <h3 className="heading-20" style={{ marginTop: '2.5rem' }}>6.8 Concurrency</h3>
-              <div className="prose body">
-                <p>
-                  Agents increasingly run as fleets sharing one memory. We ran{' '}
-                  {c.concurrency.writers} concurrent writers performing{' '}
-                  {c.concurrency.rounds} increments each on the same record, in-process for every
-                  family so the result isolates the concurrency-control mechanism rather than the
-                  deployment model.
-                </p>
-              </div>
-
-              <div style={{ marginTop: '1.5rem' }}>
-                <ConcurrencyTable capture={c} n={10} />
-              </div>
-
-              <div className="prose body" style={{ marginTop: '1.75rem' }}>
-                <p>
-                  The file store lost {s.lostUpdates} of{' '}
-                  {c.concurrency.results.file.expected} updates — {s.lostUpdatePct}%. It is the
-                  textbook lost-update anomaly<Cite n={3} />, and it arrives here for the textbook
-                  reason: read the document, modify a field, write the document back, and whoever
-                  writes last erases everyone else. Both DBMS arms lost nothing, expressing the
-                  same edit as a single statement whose atomicity the engine guarantees.
-                </p>
-              </div>
-
-              <h3 className="heading-20" style={{ marginTop: '2.5rem' }}>
-                6.9 The normalisation anomaly, as contradiction
-              </h3>
-              <div className="prose body">
-                <p>
-                  This is where the database-theory chapter stops being theoretical. In our corpus
-                  a fact is restated across {c.anomaly.restatementsPerFact.mean} memories on
-                  average and up to {c.anomaly.restatementsPerFact.max}. When the fact changes, a
-                  normalised schema updates one row in <code>FACT</code>. A denormalised store must
-                  find and rewrite every restatement.
-                </p>
-                <p>
-                  An agent does not rewrite every restatement. It rewrites what it retrieved — at
-                  most {c.anomaly.topKRepair.k} rows. Across{' '}
-                  {c.anomaly.topKRepair.factsProbed} probed facts a top-{c.anomaly.topKRepair.k}{' '}
-                  repair reached {c.anomaly.topKRepair.meanReached} of{' '}
-                  {c.anomaly.topKRepair.meanTotal} restatements, leaving{' '}
-                  <strong>{s.staleAfterRepair}% still asserting the old value</strong>.
-                </p>
-                <p>
-                  Those rows do not sit inertly on disk. They match the same queries they always
-                  did, so the agent retrieves them, reads them as confident statements of fact, and
-                  acts on them. An update anomaly in an agent&apos;s memory does not present as a
-                  data-quality metric. It presents as an agent that contradicts itself.
-                </p>
-              </div>
-
-              <div style={{ marginTop: '1.5rem' }}>
-                <AnomalyTable capture={c} n={11} />
-              </div>
-
-              <h3 className="heading-20" style={{ marginTop: '2.5rem' }}>6.10 The context-window budget</h3>
-              <div className="prose body">
-                <p>
-                  Retrieval is not free at the point of use. Everything returned is pasted into a
-                  context window and paid for per token, so the right question is not &ldquo;which
-                  arm scores highest&rdquo; but &ldquo;which arm scores highest per token
-                  spent&rdquo;.
-                </p>
-              </div>
-
-              <div style={{ marginTop: '1.5rem' }}>
-                <Figure
-                  title="Quality against context cost"
-                  meta={`k ∈ {${fts.budget.map((b) => b.k).join(', ')}}`}
-                  caption={<>Figure 11. Each line is one architecture swept over k. Up and to the left is better: more quality for fewer tokens.</>}
-                  full
-                >
-                  <ParetoChart
-                    xLabel="Mean tokens returned"
-                    yLabel={`nDCG@k`}
-                    series={live.map((e) => ({
-                      id: e.id,
-                      label: e.short,
-                      emphasis: e.id === 'sqlite-fts' || e.id === s.best.id,
-                      points: e.budget.map((b) => ({ x: b.meanTokens, y: b.ndcg, k: b.k })),
-                    }))}
-                  />
-                </Figure>
-              </div>
-
-              <div className="print-omit" style={{ marginTop: '1.75rem' }}>
-                <BudgetExplorer capture={c} />
-              </div>
-
-              <h3 className="heading-20" style={{ marginTop: '2.5rem' }}>6.11 Scaling</h3>
-              <div className="prose body">
-                <p>
-                  Every architecture was rebuilt and re-measured at{' '}
-                  {c.scaling.map((r) => num(r.memories)).join(', ')} memories. The unindexed arms
-                  degrade linearly, as they must; the indexed arms do not.
-                </p>
-              </div>
-
-              <div className="grid-2" style={{ marginTop: '1.5rem' }}>
-                <Figure
-                  title="Recall latency against corpus size"
-                  meta="p50, log-log"
-                  caption={<>Figure 12. A scan is linear in the corpus. An index is not.</>}
-                >
-                  <ScalingChart
-                    logX
-                    logY
-                    xLabel="Memories"
-                    yLabel="p50 latency (ms)"
-                    formatY={(n) => (n < 1 ? n.toFixed(2) : n.toFixed(0))}
-                    series={['file-jsonl', 'file-vec', 'sqlite-fts', 'sqlite-hybrid', 'pg-gin', 'pg-hybrid']
-                      .map((id) => ({
-                        id,
-                        label: c.engines.find((e) => e.id === id)?.short ?? id,
-                        emphasis: id === 'sqlite-fts',
-                        points: c.scaling
-                          .map((r) => {
-                            const e = r.engines.find((x) => x.id === id)
-                            return e?.p50Ms != null ? { x: r.memories, y: e.p50Ms } : null
-                          })
-                          .filter((p): p is { x: number; y: number } => p !== null),
-                      }))}
-                  />
-                </Figure>
-                <Figure
-                  title="Bytes per memory against corpus size"
-                  meta="log-linear"
-                  caption={<>Figure 13. Per-memory storage is roughly constant; the gap between arms is the embedding, not the data.</>}
-                >
-                  <ScalingChart
-                    logX
-                    xLabel="Memories"
-                    yLabel="Bytes per memory"
-                    series={['file-jsonl', 'sqlite-fts', 'sqlite-hybrid', 'pg-gin', 'pg-hybrid']
-                      .map((id) => ({
-                        id,
-                        label: c.engines.find((e) => e.id === id)?.short ?? id,
-                        emphasis: id === 'pg-hybrid',
-                        points: c.scaling
-                          .map((r) => {
-                            const e = r.engines.find((x) => x.id === id)
-                            return e?.bytesPerMemory != null ? { x: r.memories, y: e.bytesPerMemory } : null
-                          })
-                          .filter((p): p is { x: number; y: number } => p !== null),
-                      }))}
-                  />
-                </Figure>
-              </div>
-
-              <div style={{ marginTop: '1.75rem' }}>
-                <ScalingTable capture={c} n={12} />
-              </div>
-
-              <div className="prose body" style={{ marginTop: '1.75rem' }}>
-                <p>
-                  The ingest side carries the opposite lesson. Building an inverted index is
-                  cheap; building an HNSW graph is not, and neither is writing{' '}
-                  {c.toolchain.embeddingDim}-dimensional vectors through a query protocol. That
-                  cost is paid once per memory rather than once per recall, which is the right
-                  trade for a store written far less often than it is read — but it is not free,
-                  and for a memory that is written on every turn it is the dominant term.
-                </p>
-              </div>
-            </section>
-
-            {/* -------------------------------------------------------- 7. */}
-            <section id="sql" className="section">
-              <h2 className="heading-24">7. Retrieval as a query, not as code</h2>
-              <div className="prose body">
-                <p>
-                  One result deserves separating from the measurements, because it is about what
-                  the architecture makes <em>expressible</em> rather than what it makes fast.
-                </p>
-                <p>
-                  Hybrid retrieval is normally application code: run the keyword search, run the
-                  vector search, merge the two ranked lists, apply the filters, return the top{' '}
-                  <em>k</em>. In the Postgres arm none of that code exists. The entire strategy —
-                  both indexes, the structural predicate, reciprocal rank fusion<Cite n={8} /> and
-                  the truncation — is one statement the planner optimises as a unit.
-                </p>
-              </div>
-
-              <div className="code-block" style={{ marginTop: '1.5rem' }}>
-                <div className="code-head">
-                  <span>{hybrid.label} — the whole retrieval strategy</span>
-                  <span>generated by engines/postgres.mjs</span>
-                </div>
-                <pre><code>{hybrid.plans.find((p) => p.class === 'temporal')?.sql
-                  ?? hybrid.plans.find((p) => p.sql)?.sql ?? '—'}</code></pre>
-              </div>
-
-              <div className="prose body" style={{ marginTop: '1.5rem' }}>
-                <p>
-                  This matters for a reason beyond elegance. Retrieval strategy is the part of an
-                  agent that changes most often — a new filter, a different weighting, a
-                  recency term. Expressed as a query it is data the engine re-plans against current
-                  statistics. Expressed as application code it is a merge loop that has to be
-                  rewritten, re-tested, and kept consistent with whatever the store is doing.
-                </p>
-              </div>
-            </section>
-
-            {/* --------------------------------------------------- 8. explore */}
-            <section id="explore" className="section print-omit">
-              <h2 className="heading-24">8. Explore the evidence</h2>
-              <div className="prose body">
-                <p>
-                  The three panels below are the dataset rather than a summary of it: the recorded
-                  output of each architecture on each query class, the schema as measured, and the
-                  quality-per-token trade at every k.
-                </p>
-              </div>
-
-              <div style={{ marginTop: '1.75rem' }}>
-                <QueryClassExplorer capture={c} />
-              </div>
-
-              <h3 className="heading-20" style={{ marginTop: '2.5rem' }}>8.1 The schema, as executed</h3>
-              <div style={{ marginTop: '1.25rem' }}>
-                <SchemaBrowser capture={c} />
-              </div>
-            </section>
-
-            <section className="section print-only" aria-hidden="true">
-              <div style={{ display: 'flex', gap: '1.25rem', alignItems: 'flex-start' }}>
-                <QrCode size={112} />
-                <div style={{ minWidth: 0 }}>
-                  <h2 className="heading-24" style={{ marginBottom: '0.5rem' }}>Section 8 is interactive</h2>
-                  <p className="body" style={{ margin: '0 0 0.625rem', maxWidth: '46ch' }}>
-                    The query-class explorer, the dense-retrieval forensics and the schema browser
-                    are things you operate rather than read. Scan the code, or visit{' '}
-                    <strong>{AUTHORS.site}</strong>.
-                  </p>
-                </div>
-              </div>
-            </section>
-
-            {/* ----------------------------------------------- 9. discussion */}
-            <section id="discussion" className="section">
-              <h2 className="heading-24">9. Discussion</h2>
-              <div className="prose body">
-                <h3 className="heading-20" style={{ marginTop: '1.5rem' }}>
-                  9.1 A vector index is not a memory system
-                </h3>
-                <p>
-                  The strongest reading of our results is not that vector search is bad. On
-                  paraphrase it is the best tool available, and it is the only arm that finds a
-                  memory sharing no words with the query. The error is one of scope: a vector index
-                  is <em>one access method</em>, and agent memory needs several.
-                </p>
-                <p>
-                  {pct(s.structuralShare, 1)} of our workload is decided by a predicate, a join or
-                  an aggregate. Those are not exotic queries — they are &ldquo;what did we decide
-                  before the migration&rdquo;, &ldquo;what came out of that session&rdquo;,
-                  &ldquo;what is still true&rdquo;, &ldquo;how many times did this come up&rdquo;.
-                  A system whose only operation is top-<em>k</em> similarity cannot express them,
-                  and the failure is silent: it returns ten plausible memories and no indication
-                  that the question was not the one it answered.
-                </p>
-
-                <h3 className="heading-20" style={{ marginTop: '1.75rem' }}>
-                  9.2 What a DBMS actually contributes
-                </h3>
-                <p>
-                  Our results separate into two kinds, and they are worth keeping apart.
-                </p>
-                <p>
-                  The <strong>retrieval</strong> results are contingent. They depend on our corpus,
-                  our embedding model and our query mix; a different domain would move them.
-                  A reader is entitled to discount them.
-                </p>
-                <p>
-                  The <strong>integrity</strong> results are not contingent in the same way. A
-                  store with no transaction will lose concurrent updates; a store that rewrites a
-                  single document has no commit boundary to recover to; a store that repeats a
-                  fact in {c.anomaly.restatementsPerFact.mean} places cannot correct it atomically.
-                  These follow from the architecture, not from the workload. They are also the
-                  results that current practice most consistently ignores.
-                </p>
-
-                <h3 className="heading-20" style={{ marginTop: '1.75rem' }}>
-                  9.3 The recommendation is smaller than &ldquo;use Postgres&rdquo;
-                </h3>
-                <p>
-                  {s.best.label} scored highest overall at {s.bestNdcg.toFixed(3)}. We would not
-                  recommend it as a default. {fts.label} reached{' '}
-                  {fts.quality.overall.ndcg.toFixed(3)} — {pct(1 - fts.quality.overall.ndcg / s.bestNdcg, 1)}{' '}
-                  lower — at {ms(fts.quality.overall.p50Ms)} median latency, {s.vectorOverhead}×
-                  less storage, no embedding model and no server. For a single agent on one
-                  machine that is the better engineering.
-                </p>
-                <p>
-                  The case for the server arm is the case for concurrency, for a real planner, and
-                  for expressing retrieval as a query rather than as code. The case for the vectors
-                  is narrower still: they earn their {s.vectorOverhead}× storage on paraphrase
-                  recall and, on our corpus, nowhere else.
-                </p>
-                <p>
-                  The general lesson is the one the normalisation ladder in §4.2 already states.
-                  Agent memory has a schema whether or not anyone writes it down. Writing it down
-                  is what makes the questions answerable.
-                </p>
-              </div>
-            </section>
-
-            {/* --------------------------------------------- 10. limitations */}
-            <section id="limitations" className="section">
-              <h2 className="heading-24">10. Threats to validity</h2>
-              <div className="prose body">
-                <p>
-                  <strong>The corpus is synthetic.</strong> This is the most important caveat.
-                  Real agent transcripts are private, and non-circular relevance labels require
-                  knowing which fact each memory restates — which means generating the memories
-                  from the facts. We accept the trade and mitigate it by validating the corpus
-                  before using it (§5.3, Table 5) rather than assuming its properties. Absolute
-                  scores should not be read as predictions for any deployed system; the
-                  comparison between arms on identical data is what we claim.
-                </p>
-                <p>
-                  <strong>The distractors are adversarial by construction.</strong>{' '}
-                  {pct(c.corpus.stats.distractors / s.memories, 0)} of the corpus mentions an
-                  identifier while asserting nothing about it, and those records share the
-                  grammatical shape of a lookup question. That design is why dense retrieval scores
-                  as low as it does on the lexical class. We think the pattern is realistic —
-                  agents write &ldquo;checked X, unrelated&rdquo; constantly — but a corpus without
-                  it would narrow the gap, and the {s.vecLexicalNdcg.toFixed(3)} figure should be
-                  read as the behaviour under adversarial-but-plausible distractors rather than a
-                  universal constant.
-                </p>
-                <p>
-                  <strong>One embedding model, one dimensionality.</strong> All similarity results
-                  use {c.toolchain.embeddingModel} at {c.toolchain.embeddingDim} dimensions. A
-                  larger model, or one trained with identifier-aware objectives, would score better
-                  on the lexical class. The structural classes would not move at all, because their
-                  failure is representational rather than a matter of embedding quality.
-                </p>
-                <p>
-                  <strong>PGlite is Postgres in WebAssembly.</strong> The SQL semantics, planner,
-                  MVCC and WAL are genuine PostgreSQL 18.3, which is what our correctness claims
-                  rest on. The absolute latencies are not those of a native server: WASM is slower
-                  and single-threaded, so the Postgres arms are penalised on timing relative to a
-                  real deployment. Where we compare engines on latency we say so; the structural
-                  results do not depend on it.
-                </p>
-                <p>
-                  <strong>Concurrency was measured in-process.</strong> Running the file store
-                  across processes and PGlite in one would have confounded concurrency control with
-                  the deployment model. The lost-update result therefore isolates the mechanism,
-                  and says nothing about throughput under real multi-process contention.
-                </p>
-                <p>
-                  <strong>Recency happens to substitute for currency.</strong> The file arm scores
-                  well on the currency class, but not because it models supersession — it breaks
-                  ties by recency, and in our corpus the correction is always the newest memory.
-                  That coincidence is a property of the generator. It would fail the moment a
-                  superseded memory were touched again, and the arm has no way to express the
-                  constraint that would make it robust.
-                </p>
-                <p>
-                  <strong>Single machine, single run.</strong> All measurements come from one
-                  {' '}{c.machine.cores}-core machine on {c.machine.platform}/{c.machine.arch}.
-                  Latency medians are over three timed runs per query; they are not a substitute
-                  for a benchmarking harness with isolation and repetition across machines.
-                </p>
-              </div>
-            </section>
-
-            {/* ------------------------------------------------- 11. related */}
-            <section id="related" className="section">
-              <h2 className="heading-24">11. Related work</h2>
-              <div className="prose body">
-                <p>
-                  The database side of this paper is textbook and deliberately so. The relational
-                  model<Cite n={1} />, the entity-relationship model<Cite n={2} />, normalisation
-                  and the transaction<Cite n={3} /> are settled results; our contribution is
-                  applying them to a workload that has grown up without them, and measuring what
-                  their absence costs. Recovery follows ARIES<Cite n={5} />; the ranking baseline
-                  is BM25<Cite n={14} />; fusion uses reciprocal rank fusion with the original
-                  constant rather than a tuned one<Cite n={8} />, since a tuned constant would let
-                  the hybrid arm win by fitting our corpus.
-                </p>
-                <p>
-                  On the agent side, retrieval-augmented generation<Cite n={15} /> established the
-                  pattern of fetching text into a context window, and the systems that followed —
-                  MemGPT<Cite n={16} /> with its paged memory hierarchy, and the generative-agent
-                  architecture<Cite n={13} /> with its retrieval scored on recency, importance and
-                  relevance — both treat memory as a storage problem. Neither is evaluated as a
-                  database: we are not aware of prior work measuring agent memory for durability
-                  under crash, for lost updates under concurrent writers, or for the update anomaly
-                  that follows from storing an unnormalised fact.
-                </p>
-                <p>
-                  Approximate nearest-neighbour search over HNSW<Cite n={9} /> and its integration
-                  into a relational engine through pgvector<Cite n={10} /> are what make the hybrid
-                  arm possible at all; the observation that filtered vector search interacts badly
-                  with post-filtering is known in that literature, and §6.4 quantifies it for this
-                  workload.
-                </p>
-              </div>
-            </section>
-
-            {/* ---------------------------------------------- 12. conclusion */}
-            <section id="conclusion" className="section">
-              <h2 className="heading-24">12. Conclusion</h2>
-              <div className="prose body">
-                <p>
-                  An agent&apos;s memory is a database, and building it without one costs more than
-                  performance. Across {s.engines} architectures on {num(s.memories)} memories and{' '}
-                  {s.queries} labelled queries we find that {pct(s.structuralShare, 1)} of a
-                  realistic recall workload cannot be expressed as similarity search at all; that
-                  dense retrieval is near-random on the identifier queries agents ask most
-                  ({s.vecLexicalNdcg.toFixed(3)} against {s.ftsLexicalNdcg.toFixed(3)} nDCG for an
-                  inverted index); that eight concurrent writers cost a file store{' '}
-                  {s.lostUpdatePct}% of its updates while costing both DBMS arms nothing; and that
-                  a fact restated {c.anomaly.restatementsPerFact.mean} times cannot be corrected by
-                  retrieval, leaving {s.staleAfterRepair}% of its restatements contradicting the
-                  agent&apos;s current belief.
-                </p>
-                <p>
-                  None of the database results are new. Codd<Cite n={1} />, Chen<Cite n={2} /> and
-                  Gray<Cite n={3} /> settled them decades ago. What is new is the setting: a class
-                  of system that writes records, indexes them, queries them under a budget and must
-                  survive a crash — and that has largely been built as though none of that work had
-                  happened. The useful contribution of this paper is not a new architecture. It is
-                  a measurement of how much the old one is still worth.
-                </p>
-              </div>
-            </section>
-
-            {/* -------------------------------------------------- references */}
-            <section id="references" className="section">
-              <h2 className="heading-24">References</h2>
-              <ol className="prose" style={{ paddingLeft: '1.25rem', fontSize: '0.9375rem', lineHeight: 1.65 }}>
-                <li id="ref-1" style={{ marginBottom: '0.75rem' }}>
-                  E. F. Codd. <em>A Relational Model of Data for Large Shared Data Banks.</em>{' '}
-                  Communications of the ACM 13(6), 1970. <A href={R.codd}>dl.acm.org</A>
-                </li>
-                <li id="ref-2" style={{ marginBottom: '0.75rem' }}>
-                  P. P.-S. Chen. <em>The Entity-Relationship Model — Toward a Unified View of Data.</em>{' '}
-                  ACM TODS 1(1), 1976. <A href={R.chen}>dl.acm.org</A>
-                </li>
-                <li id="ref-3" style={{ marginBottom: '0.75rem' }}>
-                  J. Gray, A. Reuter. <em>Transaction Processing: Concepts and Techniques.</em>{' '}
-                  Morgan Kaufmann, 1993. <A href={R.gray}>dl.acm.org</A>
-                </li>
-                <li id="ref-4" style={{ marginBottom: '0.75rem' }}>
-                  The PostgreSQL Global Development Group. <em>Write-Ahead Logging (WAL).</em>{' '}
-                  PostgreSQL 18 documentation. <A href={R.wal}>postgresql.org</A>
-                </li>
-                <li id="ref-5" style={{ marginBottom: '0.75rem' }}>
-                  C. Mohan et al. <em>ARIES: A Transaction Recovery Method Supporting Fine-Granularity
-                  Locking and Partial Rollbacks Using Write-Ahead Logging.</em> ACM TODS 17(1), 1992.{' '}
-                  <A href={R.aries}>dl.acm.org</A>
-                </li>
-                <li id="ref-6" style={{ marginBottom: '0.75rem' }}>
-                  The PostgreSQL Global Development Group. <em>PostgreSQL 18 documentation.</em>{' '}
-                  <A href={R.postgres}>postgresql.org/docs/18</A>. Measured build:{' '}
-                  <span className="mono" style={{ fontSize: '0.8125rem' }}>{c.toolchain.postgres}</span>
-                </li>
-                <li id="ref-7" style={{ marginBottom: '0.75rem' }}>
-                  SQLite Consortium. <em>SQLite {c.toolchain.sqlite}</em>, and{' '}
-                  <A href={R.fts5}>FTS5 full-text search</A>. <A href={R.sqlite}>sqlite.org</A>
-                </li>
-                <li id="ref-8" style={{ marginBottom: '0.75rem' }}>
-                  G. V. Cormack, C. L. A. Clarke, S. Buettcher. <em>Reciprocal Rank Fusion Outperforms
-                  Condorcet and Individual Rank Learning Methods.</em> SIGIR 2009.{' '}
-                  <A href={R.rrf}>dl.acm.org</A>
-                </li>
-                <li id="ref-9" style={{ marginBottom: '0.75rem' }}>
-                  Y. A. Malkov, D. A. Yashunin. <em>Efficient and Robust Approximate Nearest Neighbor
-                  Search Using Hierarchical Navigable Small World Graphs.</em> 2016.{' '}
-                  <A href={R.hnsw}>arXiv:1603.09320</A>
-                </li>
-                <li id="ref-10" style={{ marginBottom: '0.75rem' }}>
-                  A. Kane et al. <em>pgvector — open-source vector similarity search for Postgres.</em>{' '}
-                  <A href={R.pgvector}>github.com/pgvector/pgvector</A>. Build {c.toolchain.pgvector}.
-                </li>
-                <li id="ref-11" style={{ marginBottom: '0.75rem' }}>
-                  ElectricSQL. <em>PGlite — PostgreSQL packaged as WebAssembly.</em>{' '}
-                  <A href={R.pglite}>pglite.dev</A>. Version {c.toolchain.pglite}.
-                </li>
-                <li id="ref-12" style={{ marginBottom: '0.75rem' }}>
-                  E. Tulving. <em>Episodic and Semantic Memory.</em> In <em>Organization of Memory</em>,
-                  Academic Press, 1972. <A href={R.tulving}>alicekim.ca</A>
-                </li>
-                <li id="ref-13" style={{ marginBottom: '0.75rem' }}>
-                  J. S. Park et al. <em>Generative Agents: Interactive Simulacra of Human Behavior.</em>{' '}
-                  UIST 2023. <A href={R.generative}>arXiv:2304.03442</A>
-                </li>
-                <li id="ref-14" style={{ marginBottom: '0.75rem' }}>
-                  S. Robertson, H. Zaragoza. <em>The Probabilistic Relevance Framework: BM25 and Beyond.</em>{' '}
-                  Foundations and Trends in Information Retrieval, 2009. <A href={R.bm25}>city.ac.uk</A>
-                </li>
-                <li id="ref-15" style={{ marginBottom: '0.75rem' }}>
-                  P. Lewis et al. <em>Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks.</em>{' '}
-                  NeurIPS 2020. <A href={R.rag}>arXiv:2005.11401</A>
-                </li>
-                <li id="ref-16" style={{ marginBottom: '0.75rem' }}>
-                  C. Packer et al. <em>MemGPT: Towards LLMs as Operating Systems.</em> 2023.{' '}
-                  <A href={R.memgpt}>arXiv:2310.08560</A>
-                </li>
-                <li id="ref-17">
-                  R. Elmasri, S. B. Navathe. <em>Fundamentals of Database Systems.</em> 7th ed.,
-                  Pearson, 2016. <A href={R.elmasri}>pearson.com</A> · R. Ramakrishnan, J. Gehrke.{' '}
-                  <em>Database Management Systems.</em> 3rd ed., McGraw-Hill, 2003.{' '}
-                  <A href={R.ramakrishnan}>cs.wisc.edu</A>
-                </li>
-              </ol>
-            </section>
-
-            {/* ---------------------------------------------------- appendix */}
-            <section id="appendix" className="section">
-              <h2 className="heading-24">Appendix A. Reproduction</h2>
-              <div className="prose body">
-                <p>
-                  Everything regenerates from one command. No database server, no API key and no
-                  network access at measurement time — the embedding model and both engines are
-                  local.
-                </p>
-              </div>
-              <div style={{ maxWidth: 720, marginTop: '1rem' }}>
-                <div className="code-block">
-                  <div className="code-head"><span>regenerate everything</span></div>
-                  <pre><code>{`git clone https://github.com/HKTITAN/dbms-agent-memory
-cd dbms-agent-memory && npm install
-
-npm run paper   # corpus -> embed -> capture -> qr -> build -> pdf -> epub`}</code></pre>
-                </div>
-              </div>
-
-              <div className="prose body" style={{ marginTop: '1.5rem' }}>
-                <p>
-                  <code>npm run capture</code> alone rebuilds the dataset every figure reads.
-                  It runs the {s.engines} architectures over the main corpus, the post-filter
-                  sweep, the scaling sweep at {c.scaling.length} sizes, the crash trials, the
-                  lost-update test and the anomaly probe, and writes{' '}
-                  <code>data/capture.json</code>. Total runtime is dominated by the Postgres arms.
-                </p>
-              </div>
-
-              <h3 className="heading-20" style={{ marginTop: '2rem' }}>Appendix B. Schema DDL</h3>
-              <div className="prose body">
-                <p>
-                  Generated from <code>engines/schema.mjs</code> — the same declaration the ER
-                  diagram in Figure 2 renders from, so the diagram and the executed schema cannot
-                  disagree.
-                </p>
-              </div>
-              <div className="code-block" style={{ marginTop: '1rem' }}>
-                <div className="code-head">
-                  <span>PostgreSQL</span>
-                  <span>{c.schema.entities.length} relations, {c.schema.secondaryIndexes.length} secondary indexes</span>
-                </div>
-                <pre><code>{c.schema.ddl.postgres.join(';\n\n') + ';\n\n'
-                  + c.schema.secondaryIndexes
-                    .map((i) => `CREATE INDEX ${i.name} ON ${i.table}(${i.cols.join(', ')});  -- serves: ${i.serves}`)
-                    .join('\n')}</code></pre>
-              </div>
-            </section>
-          </main>
-        </div>
-
-        <footer className="footer">
-          <span>
-            {AUTHORS.lead}, {AUTHORS.co.join(', ')} · <A href={QR_URL}>{AUTHORS.site}</A>
-          </span>
-          <span className="meta">PostgreSQL 18.3 · SQLite {c.toolchain.sqlite} · {captured}</span>
-        </footer>
-      </div>
-    </AudienceProvider>
+    <blockquote className="figure" style={{ margin: '1.25rem 0', padding: '0.9rem 1.1rem' }}>
+      <p style={{ margin: 0, fontStyle: 'italic', color: 'var(--text)' }}>{children}</p>
+      <p className="meta mono" style={{ margin: '0.5rem 0 0' }}>{file}</p>
+    </blockquote>
   )
 }
+
+export default function Paper() {
+  const s = schema.source
+  const provenance = amp('provenance')
+  const body = amp('body-search')
+  const conc = exp.concurrency
+  const temporal = exp.temporal
+  const res = exp.resolution
+  const ft = exp.fulltext
+  const ceiling = exp.ceiling
+  const bit = exp.bitemporal
+
+  return (
+    <div className="shell with-rail">
+      <Sidebar entries={TOC} downloads={DOWNLOADS} />
+
+      <main id="main">
+        {/* ------------------------------------------------------- masthead */}
+        <header className="masthead">
+          <p className="label">Review paper · Database Management Systems</p>
+          <h1 className="title">Agent memory as a database problem</h1>
+          <p className="lede">
+            A review of Notion&rsquo;s <span className="mono">Lore</span>, and what happens when its
+            schema is given a database to run on.
+          </p>
+
+          <div className="meta" style={{ marginTop: '1.5rem' }}>
+            <p>
+              <strong>{AUTHORS.lead}</strong> · {AUTHORS.co.join(' · ')}
+            </p>
+            <p>Submitted to {AUTHORS.submittedTo} · BTech CSE coursework</p>
+            <p>
+              Subject: <a href={s.repo} className="cite">{s.repo.replace('https://', '')}</a> at{' '}
+              <span className="mono">{s.commit}</span> ({s.version}, {s.license}), read {s.commitDate}.
+              Measured {capturedOn}.
+            </p>
+          </div>
+
+          <div className="downloads">
+            <div>
+              <h2 className="label" id="artifacts-heading">Everything, downloadable</h2>
+              <ul className="download-list" aria-labelledby="artifacts-heading">
+                {ARTIFACTS.map((a) => (
+                  <li key={a.href}>
+                    <a className="download" href={a.href} download={a.href.endsWith('.html') ? undefined : ''}>
+                      <span className="download-name">{a.name}</span>
+                      <span className="download-meta">{a.meta}</span>
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div className="download-qr">
+              <QrCode />
+              <p className="meta">{QR_URL}</p>
+            </div>
+          </div>
+        </header>
+
+        {/* -------------------------------------------------------- abstract */}
+        <section id="abstract" className="section">
+          <h2 className="heading-24">Abstract</h2>
+          <div className="prose">
+            <p>
+              Lore is Notion&rsquo;s open-source memory system for AI agents. It gives an assistant a
+              persistent, shared vault so that context survives a cleared session, a new branch, or a
+              handover between people, and it does so by storing that memory as rows in five Notion
+              databases: Projects, Topics, Memories, Entities and Facts. The design is unusual and
+              deliberate. The memory is human-readable, editable by hand, and inherits the
+              permissions of a tool the team already pays for; there is no database to run.
+            </p>
+            <p>
+              This paper reviews that design as a database design. We reconstruct Lore&rsquo;s schema
+              from its source — {n(totalProperties)} properties across five databases, read from{' '}
+              <span className="mono">{s.schemaFile}</span> at commit <span className="mono">{s.commit}</span> —
+              and analyse it with the ordinary tools: the entity-relationship model, normal forms,
+              functional dependencies, the temporal-database distinction between valid time and
+              transaction time, and the invariants a schema can declare. We then reimplement the same
+              schema on SQLite and PostgreSQL, generate a vault of {n(vault.memories)} memories and{' '}
+              {n(vault.facts)} facts whose ground truth is definitional rather than judged, and put a
+              workload of {n(vault.questions)} questions in {classes.length} classes through three
+              stores: an emulator restricted to the documented Notion Data API, and the two engines.
+            </p>
+            <p>
+              The result is not that the vault gets things wrong. It gets them right: the Notion arm
+              answers <strong>{pct(capture.byArm.notion.exact, 1)}</strong> of the workload exactly,
+              the same as both engines. What separates them is what the answer costs and what the
+              store will refuse. Answering the workload takes the Data API{' '}
+              <strong>{n(totalNotionRoundTrips)}</strong> requests against{' '}
+              <strong>{n(totalSqlStatements)}</strong> SQL statements — {duration(workloadFloorSeconds)} of
+              wall-clock floor at the documented {limits.requestsPerSecond} requests per second, before
+              anyone&rsquo;s network is involved. A single join from a claim to the memory that
+              supports it costs {n(provenance.notionRoundTrips, 0)} requests
+              ({times(provenance.roundTrips)}). Searching what memories actually say costs{' '}
+              {n(body.notionRoundTrips, 0)} ({duration(body.notionFloorSeconds)}), because the search
+              endpoint matches titles and a memory&rsquo;s text is page blocks.
+            </p>
+            <p>
+              The sharper finding is about refusal. Eight agents upserting the same topic key lose{' '}
+              <strong>{pct(conc.notion.lostUpdateRate)}</strong> of their updates, because the
+              read-then-write protocol has no conditional write to close; the same workload through a
+              unique index loses none. PostgreSQL declines even to <em>add</em> a temporal exclusion
+              constraint to the vault as generated, because {n(temporal.trueConflictKeys)} subject-predicate
+              pairs already assert two different objects over overlapping time — contradictions that
+              Lore detects afterwards, with a documented scan cap, and that a range-typed constraint
+              refuses at the point of writing. Three normalisation violations ship, each for a
+              substrate reason we can name: a repeating group in one cell, a stored expression
+              standing in for an index Notion has no way to create, and a Boyce-Codd violation in the
+              centre of the knowledge graph that leaves {n(res.staleSubjectStrings)} facts whose title
+              and whose relation disagree about their own subject.
+            </p>
+            <p>
+              We argue that these are not defects so much as the visible price of a real trade, and
+              that the trade is legible: Lore exchanges every guarantee a database declares —
+              uniqueness, referential integrity, atomicity, the ability to state a join — for
+              human-legible memory, zero infrastructure and inherited permissions, and then
+              re-implements the discarded guarantees as scanners, migrations and filesystem locks. Its
+              own documentation is unusually candid about where the seams are. The contribution here
+              is to put numbers on them.
+            </p>
+          </div>
+
+          <StatStrip
+            stats={[
+              { value: pct(capture.byArm.notion.exact, 0), label: 'workload answered exactly, all three stores' },
+              { value: n(totalNotionRoundTrips), label: 'requests the Data API needs' },
+              { value: n(totalSqlStatements), label: 'SQL statements the same workload needs' },
+              { value: pct(conc.notion.lostUpdateRate, 0), label: 'updates lost by 8 concurrent writers' },
+            ]}
+          />
+        </section>
+
+        {/* ---------------------------------------------------- introduction */}
+        <section id="introduction" className="section">
+          <h2 className="heading-24">1. Introduction</h2>
+          <div className="prose">
+            <p>
+              An agent that forgets is a tool. An agent that remembers is a colleague, and colleagues
+              need somewhere to keep what they know. The last three years have produced a shelf of
+              answers to that need — paged context windows <Cite n={3} />, memory streams with
+              reflection <Cite n={9} />, extraction-and-update pipelines over a vector store{' '}
+              <Cite n={5} />, temporal knowledge graphs <Cite n={6} />, and, at the simple end, a
+              markdown file the model rewrites <Cite n={15} />. What almost none of them do is take
+              seriously the possibility that this is a problem the database community solved, in
+              stages, between 1970 and 2011.
+            </p>
+            <p>
+              Lore is interesting because it comes closer than most. It is not a vector index with a
+              metadata blob bolted on. It is a schema: five related tables, a subject-predicate-object
+              fact relation with validity intervals and a confidence, a canonical entity registry with
+              aliases, and a set of services that maintain them. Reading its source, one keeps meeting
+              old friends — a specialisation hierarchy, a bridge table, a derived attribute, a
+              supersession chain — and the pleasure of the exercise is watching a team arrive at the
+              relational model from the outside, under a constraint the relational model has never had
+              to work under: the store is a document database exposed over HTTP, and it has no joins,
+              no aggregates, no unique indexes, no constraints, and no conditional writes.
+            </p>
+            <p>
+              This paper asks a narrow question with a broad answer. <em>What does that constraint
+              actually cost?</em> Not rhetorically — in requests, in bytes, in rows the client has to
+              look at itself, and in states the store will happily accept and a database would refuse.
+            </p>
+            <p>Our contributions are four.</p>
+            <ol>
+              <li>
+                <strong>A schema reconstruction.</strong> Lore&rsquo;s five databases, restated as a
+                relational schema with an entity-relationship diagram, functional dependencies, and a
+                normalisation walk. Every property name and enumeration is read from{' '}
+                <span className="mono">{s.schemaFile}</span>, not from prose, and the diagram, the DDL
+                and the argument are all generated from one declaration so they cannot drift (§4, §5).
+              </li>
+              <li>
+                <strong>A workload with non-circular ground truth.</strong> {classes.length} question
+                classes read off Lore&rsquo;s own commands and hooks, each annotated with the minimum
+                relational algebra it needs, over a vault generated world-first so that the correct
+                answer is definitional (§7).
+              </li>
+              <li>
+                <strong>A cost measurement in substrate-independent units.</strong> Round trips, bytes
+                and client-side rows, against an emulator restricted to the documented Data API, with
+                every restriction carrying the reference page it comes from (§8).
+              </li>
+              <li>
+                <strong>Integrity experiments.</strong> Four invariants, attacked deliberately, on
+                both the vault and a reimplementation that can declare them (§9).
+              </li>
+            </ol>
+            <p>
+              We are reviewing a system, not competing with it. Where a measurement came out smaller
+              than the argument would have liked, §9.5 and §14 say so.
+            </p>
+          </div>
+        </section>
+
+        {/* ------------------------------------------------------- background */}
+        <section id="background" className="section">
+          <h2 className="heading-24">2. Background</h2>
+
+          <h3 className="heading-20">2.1 What an agent memory has to do</h3>
+          <div className="prose">
+            <p>
+              The surveys converge on a decomposition. Du and colleagues split memory operations into
+              six atoms — consolidation, updating, indexing, forgetting, retrieval and compression{' '}
+              <Cite n={19} /> — and every one of the six has a database name. Consolidation is
+              materialisation. Updating is the update anomaly problem. Indexing is indexing. Forgetting
+              is a retention policy. Retrieval is query processing. Compression is, roughly,
+              summarisation as a materialised view. Zhang and colleagues&rsquo; earlier survey{' '}
+              <Cite n={17} /> and Wu and colleagues&rsquo; human-memory mapping <Cite n={18} /> reach
+              the same place from different directions.
+            </p>
+            <p>
+              What the benchmarks then show is that the hard part is not recall of a single fact but
+              recall <em>through change</em>. LongMemEval isolates five abilities and two of them —
+              temporal reasoning and knowledge updates — are exactly the ones a validity interval
+              exists to serve <Cite n={24} />; LoCoMo finds that models struggle with long-range
+              temporal and causal dynamics even when the whole history is in context <Cite n={23} />.
+              An agent memory that cannot say <em>when</em> something was true is not a memory, it is
+              a pile.
+            </p>
+          </div>
+
+          <h3 className="heading-20">2.2 Why this is a database problem</h3>
+          <div className="prose">
+            <p>
+              Codd&rsquo;s 1970 paper is about the same complaint <Cite n={39} />: applications were
+              storing data in a shape that made some questions easy and others unaskable, and changing
+              the shape broke the applications. Chen gave the modelling vocabulary six years later{' '}
+              <Cite n={41} />. Temporal databases gave us the distinction that the agent-memory
+              literature keeps rediscovering — valid time, when a fact was true in the world, against
+              transaction time, when the database came to believe it <Cite n={42} /><Cite n={43} /> —
+              and SQL:2011 standardised it <Cite n={44} />. Record linkage has a theory from 1969{' '}
+              <Cite n={46} /> and a generic framework from 2009 <Cite n={47} />. Provenance has a
+              characterisation <Cite n={48} /> and a survey <Cite n={49} />. The lost update is in
+              Gray <Cite n={51} /> and the isolation levels that permit it are in Berenson{' '}
+              <Cite n={52} />.
+            </p>
+            <p>
+              None of this is a criticism of the agent-memory literature, which is solving a different
+              and newer problem. It is an observation that a memory system arriving at
+              subject-predicate-object triples with validity windows and a confidence score has
+              arrived at RDF <Cite n={53} /> with named graphs <Cite n={55} /> and a probabilistic
+              layer <Cite n={58} />, and that the questions those communities asked next are the
+              questions worth asking here.
+            </p>
+          </div>
+
+          <h3 className="heading-20">2.3 The Model Context Protocol</h3>
+          <div className="prose">
+            <p>
+              Lore reaches assistants through MCP, opened by Anthropic in November 2024{' '}
+              <Cite n={25} />. The specification defines exactly three server primitives —
+              resources, prompts and tools <Cite n={26} />. Lore exposes its entire vault through
+              tools alone, six of them, each multiplexing several actions behind one registration.
+              That is a substantive design choice: a vault modelled as resources would be
+              addressable and cacheable by the host, and a vault modelled as tools is a set of
+              procedures the model must decide to call.
+            </p>
+          </div>
+        </section>
+
+        {/* ----------------------------------------------------- the system */}
+        <section id="system" className="section">
+          <h2 className="heading-24">3. The system under review</h2>
+          <div className="prose">
+            <p>
+              Lore is an MIT-licensed Node package, <span className="mono">@notionhq/lore</span>, at
+              version {s.version} when we read it. Three surfaces share one set of domain services: an
+              MCP server for assistants, a CLI for people, and lifecycle hooks that load context at
+              session start and save it at session end. Underneath all three is the Notion Data API,
+              and underneath that is a page: a vault is one Notion page containing five databases.
+            </p>
+          </div>
+
+          <Figure
+            title="Figure 1 — Lore's surfaces"
+            caption="Three entry points, one set of services, one substrate. The hooks are what make the memory ambient rather than requested: wake-up fires before the assistant's first response, autosave after its last."
+            full
+          >
+            <SurfaceDiagram />
+          </Figure>
+
+          <div className="prose">
+            <p>
+              The choice of substrate is the whole design. Notion is a document store with a
+              relational veneer: a database is a collection of pages, a page has typed properties, and
+              a relation property holds an array of page identifiers. What it is not is a query
+              processor. The public reference documents filters and sorts over properties, cursor
+              pagination at a hundred rows a request, and a search endpoint; it offers no join, no
+              aggregate, no unique index, no check constraint, and no conditional write.
+            </p>
+          </div>
+
+          <Figure
+            title="Table 1 — The documented limits our emulator enforces"
+            caption="Each row is a constraint the Notion arm respects, with the reference page it comes from. Nothing in the emulator refuses anything the reference offers, and nothing permits anything it does not."
+            full
+          >
+            <ApiLimitsTable />
+          </Figure>
+
+          <div className="prose">
+            <p>
+              Two of these deserve emphasis because the paper returns to them. First,{' '}
+              <strong>the search endpoint matches titles</strong>, not page content. A memory in Lore
+              is a title, a set of properties, and a body of blocks; the body is where the sentence
+              somebody wrote lives, and no property filter can see it. Second,{' '}
+              <strong>there is no documented conditional write</strong> — no ETag, no{' '}
+              <span className="mono">If-Match</span>, no version token — so a client that reads a row
+              and then writes it cannot ask the server to apply the write only if nothing changed in
+              between.
+            </p>
+          </div>
+        </section>
+
+        {/* --------------------------------------------------------- model */}
+        <section id="model" className="section">
+          <h2 className="heading-24">4. The data model</h2>
+          <div className="prose">
+            <p>
+              Lore&rsquo;s schema is declared in one TypeScript file that describes itself as
+              &ldquo;the single source of truth for every read and write on this database&rdquo;. We
+              transcribed it into the relational vocabulary, and everything downstream in this
+              repository — the diagram below, the DDL both engines execute, the property catalogue the
+              emulator creates, and the dependency analysis in §5 — is generated from that one
+              transcription.
+            </p>
+          </div>
+
+          <Figure
+            title="Table 2 — The five databases"
+            caption="Property counts are computed from the declaration, not counted by hand. 'Derived' means a column whose value is a function of other columns in the same row; 'system-managed' means a column the agent-facing tools do not accept."
+            full
+          >
+            <DatabaseTable />
+          </Figure>
+
+          <div className="prose">
+            <p>
+              Three things about that table are worth stopping on.
+            </p>
+            <p>
+              <strong>Memories is a single-table specialisation with ten subtypes.</strong> The{' '}
+              <span className="mono">Kind</span> property takes ten values — note, decision, incident,
+              runbook, postmortem, policy, state, operational, task and procedure — and the subtypes do
+              not share attributes. A task has <span className="mono">Task State</span>,{' '}
+              <span className="mono">Blocked By</span> and <span className="mono">Done At</span>; a
+              decision has <span className="mono">Alternatives</span>,{' '}
+              <span className="mono">Consequences</span> and <span className="mono">Decided At</span>;
+              a pinned block has <span className="mono">Pinned Priority</span> and{' '}
+              <span className="mono">Mutability</span>. This is the classic single-table
+              specialisation, and it is paid for exactly as the textbooks say: in columns that are null
+              for most rows, and in the impossibility of declaring &ldquo;a task must have a task
+              state&rdquo; anywhere the store can enforce it.
+            </p>
+            <p>
+              <strong>Facts is a triple store with two time axes and two confidences.</strong> Subject,
+              predicate and object; <span className="mono">Valid From</span> and{' '}
+              <span className="mono">Valid Until</span>; <span className="mono">Observed At</span>,{' '}
+              <span className="mono">Invalidated At</span> and{' '}
+              <span className="mono">Invalidated By</span>; a categorical{' '}
+              <span className="mono">Confidence</span> and a numeric{' '}
+              <span className="mono">Confidence Score</span>. Lore&rsquo;s comment on the four dates is
+              precise about what they are for:
+            </p>
+          </div>
+
+          <Src file="src/notion/schema.ts">
+            &ldquo;Valid From / Valid Until model domain truth (when the fact was true in the world);
+            Observed At and Invalidated At model what Lore knew and when. Together they implement the
+            bitemporal axis used for as-of recall.&rdquo;
+          </Src>
+
+          <div className="prose">
+            <p>
+              <strong>Facts is also the link table.</strong> Four of Lore&rsquo;s predicates are
+              referential plumbing rather than domain knowledge:{' '}
+              <span className="mono">mentions</span> is auto-emitted when a memory is saved,{' '}
+              <span className="mono">decided_by</span>, <span className="mono">supersedes_decision</span>{' '}
+              and <span className="mono">informs</span> are written only by the decision service. They
+              live in the same relation as <span className="mono">owned_by</span> and{' '}
+              <span className="mono">depends_on</span>, so any aggregate over &ldquo;the facts we
+              know&rdquo; counts pointers as claims unless it filters them out. In our generated vault
+              those system predicates are {pct(vault.systemPredicateShare)} of all facts.
+            </p>
+          </div>
+
+          <Figure
+            title="Figure 2 — Entity-relationship diagram, Chen notation"
+            caption={
+              <>
+                Generated from the schema declaration. Every box is a relation the reimplementation
+                creates; every edge is a foreign key it enforces. The dashed box is{' '}
+                <span className="mono">ENTITY_ALIAS</span> — the relation a normalised schema would
+                have and the vault does not, because Lore stores aliases as a joined string in one
+                cell.
+              </>
+            }
+            full
+          >
+            <ErDiagram />
+          </Figure>
+
+          <h3 className="heading-20">4.1 The property catalogue</h3>
+          <div className="prose">
+            <p>
+              A reader with their own vault can check our reconstruction against it. The catalogue
+              below lists every property we model, its Notion type, and the flags that matter for the
+              analysis: whether it is derived, whether it is system-managed, whether it is a repeating
+              group inside a single cell, and which temporal axis it belongs to. Properties marked{' '}
+              <em>not modelled</em> exist in Lore and are left null by our generator because the
+              workload does not exercise them; naming them is cheaper than a footnote and harder to
+              forget.
+            </p>
+          </div>
+
+          <Figure title="Table 3 — Property catalogue" full>
+            <SchemaTable />
+          </Figure>
+        </section>
+
+        {/* -------------------------------------------------- normalisation */}
+        <section id="normalisation" className="section">
+          <h2 className="heading-24">5. Normalisation</h2>
+          <div className="prose">
+            <p>
+              The usual normalisation exercise walks a badly-shaped relation to Boyce-Codd form and
+              declares victory. That is not the interesting exercise here, because Lore&rsquo;s
+              designers are not naïve — most of the schema is in good shape. The interesting exercise
+              is the other one: <em>which violations ship, and why</em>. Three do, and each has a
+              substrate reason we can name.
+            </p>
+          </div>
+
+          <Figure
+            title="Figure 3 — The normalisation walk"
+            caption="Rungs marked as shipping are violations still present in Lore. They are the argument of this section; the rest is the ladder that gets us to them."
+            full
+          >
+            <NormalizationLadder />
+          </Figure>
+
+          <h3 className="heading-20">5.1 A repeating group in one cell</h3>
+          <div className="prose">
+            <p>
+              <span className="mono">Entities.Aliases</span> is a single{' '}
+              <span className="mono">rich_text</span> cell holding a comma-joined list. This is a first
+              normal form violation of the most textbook kind, and Lore states its reason plainly:
+            </p>
+          </div>
+
+          <Src file="src/notion/schema.ts">
+            &ldquo;Multi-select option lists require a schema migration whenever a new alias appears,
+            and aliases are deeply free-form (case variants, &lsquo;MemoryService.create&rsquo;
+            alongside &lsquo;MemoryService&rsquo;, legacy spellings) — every new fact would force a{' '}
+            <span className="mono">dataSources.update</span> round-trip.&rdquo;
+          </Src>
+
+          <div className="prose">
+            <p>
+              The reasoning is sound and the consequence is real. Because the list lives inside a
+              string, the only server-side operator that reaches it is{' '}
+              <span className="mono">contains</span> — a substring test over the whole cell. Lore does
+              the correct thing: it uses the substring filter as a <em>candidate</em> filter and then
+              re-splits every candidate in the client to keep exact tokens. Correctness survives. What
+              does not survive is the claim that the store answered the question, and the invariant
+              &ldquo;an alias identifies one entity&rdquo; is not merely unenforced but explicitly
+              disclaimed — the source comment reads &ldquo;aliases are deliberately not unique across
+              entities&rdquo;. §9.5 measures what the over-matching costs, and the honest answer is:
+              less than we expected.
+            </p>
+            <p>
+              The same violation appears three more times on Memories, and one of the three is worse
+              than the alias case. <span className="mono">Compare Notes</span> is an append-only NDJSON
+              audit log — one JSON line per adjudication verdict — stored in a single{' '}
+              <span className="mono">rich_text</span> cell, and Lore&rsquo;s comment records that
+              appending past the {n(limits.richTextChars)}-character cap throws. That is a child table
+              inside an attribute, with a hard row limit, and the revision chain of a topic-keyed
+              memory is worse still: it is prose in page blocks, so &ldquo;what did this runbook say in
+              March&rdquo; is not a question anyone can write a query for.
+            </p>
+          </div>
+
+          <h3 className="heading-20">5.2 An index, materialised as a column</h3>
+          <div className="prose">
+            <p>
+              Facts carries two derived columns. <span className="mono">DedupKey</span> is a hash of
+              normalised subject, predicate and object, used to coalesce cosmetic duplicates.{' '}
+              <span className="mono">SubjectKey</span> is the lowercased, whitespace-collapsed subject.
+              A relational engine expresses both as one line —{' '}
+              <span className="mono">CREATE UNIQUE INDEX ON fact (lower(subject), predicate, lower(object))</span>{' '}
+              — because it has expression indexes. Notion does not, so the expression becomes a stored
+              column, which can drift from its source, and which needs a backfill migration for every
+              row written before it existed.
+            </p>
+            <p>
+              Lore&rsquo;s comment even explains why <em>two</em> columns are needed rather than one,
+              and the reason is a second substrate limitation stacked on the first: they need{' '}
+              <span className="mono">contains</span> substring matching, &ldquo;which Notion
+              doesn&rsquo;t run against hashed values&rdquo;. A hash serves uniqueness; a normalised
+              string serves lookup; a database would have served both with one index and no columns.
+            </p>
+          </div>
+
+          <h3 className="heading-20">5.3 The violation in the middle of the graph</h3>
+          <div className="prose">
+            <p>
+              Every Notion database has exactly one title property, and a title property cannot be a
+              relation. Facts therefore carries its subject twice: as{' '}
+              <span className="mono">Subject</span>, a string, and as{' '}
+              <span className="mono">SubjectEntity</span>, a relation to the canonical Entity row. The
+              relation determines the string. Neither is a candidate key of Facts. That is a Boyce-Codd
+              violation, and it is not hypothetical — it is reachable by the most ordinary maintenance
+              operation the system has.
+            </p>
+            <p>
+              <span className="mono">mergeEntities</span> repoints every fact relation from the losing
+              entity to the winner, absorbs the loser&rsquo;s lookup forms as aliases, and archives the
+              loser. It never rewrites the <span className="mono">Subject</span> title. After a merge,
+              the vault holds facts whose title says one name and whose relation points at a row with
+              another. In our generated vault, {n(res.staleSubjectStrings)} facts are in that state —{' '}
+              {pct(res.staleSubjectRate)} of all facts — and an agent reading the title reads the old
+              name while an agent following the relation reads the new one.
+            </p>
+          </div>
+
+          <Figure title="Table 4 — Functional dependencies" full>
+            <FdTable />
+          </Figure>
+          <Figure
+            title="Table 5 — The normalisation walk, tabulated"
+            caption="The 'ships' column is the finding. Everything above it is the standard exercise."
+            full
+          >
+            <NormalizationTable />
+          </Figure>
+
+          <div className="prose">
+            <p>
+              A fourth item belongs here even though it is not a normal-form violation in the classical
+              sense. <span className="mono">Confidence Score</span> is a stored derivation whose inputs
+              are not stored. Lore seeds it from the categorical stance
+              ({Object.entries(schema.confidenceModel.seed).map(([k, v]) => `${k} → ${v}`).join(', ')}),
+              raises it by {schema.confidenceModel.bumpRate} of the remaining headroom on each read
+              citation, multiplies it by {schema.confidenceModel.decrementFactor} on a contradiction,
+              and decays it at {schema.confidenceModel.decayRate} per day of neglect after a{' '}
+              {schema.confidenceModel.staleGraceDays}-day grace period. Because the citations,
+              contradictions and touches are not themselves rows, the score cannot be recomputed,
+              audited or rolled back, and two vaults that saw the same evidence in a different order
+              hold different scores for the same fact.
+            </p>
+            <p>
+              The most striking thing about the score is what happens to it next. Lore maintains it,
+              pays write amplification to persist it, and then declines to let it influence retrieval
+              at all — <span className="mono">confidenceFactor</span> returns{' '}
+              {schema.confidenceModel.retrievalFactor} for every input, with the comment that
+              &ldquo;ranking callers cannot use confidence as a multiplier&rdquo;. It is a trust
+              label, not a probability, and reading it as either a probabilistic database tuple weight{' '}
+              <Cite n={58} /> or an AGM belief state <Cite n={57} /> would misrepresent it. We think
+              declining to rank on it is the right call — a citation is a retrieval event, not a
+              corroboration, so a frequently-retrieved wrong fact would otherwise ratchet upward — but
+              it leaves a maintained column that nothing consumes.
+            </p>
+          </div>
+        </section>
+
+        {/* --------------------------------------------------------- temporal */}
+        <section id="temporal" className="section">
+          <h2 className="heading-24">6. The temporal model</h2>
+          <div className="prose">
+            <p>
+              Lore&rsquo;s Facts relation is bitemporal in schema, which puts it ahead of most agent
+              memory systems and level with Zep&rsquo;s Graphiti <Cite n={6} /><Cite n={7} />. Valid
+              time says when a claim was true; transaction time says when the vault believed it. The
+              standard has had the vocabulary since SQL:2011 <Cite n={44} /> and the consensus
+              glossary since 1998 <Cite n={43} />.
+            </p>
+            <p>
+              The question a review has to ask is whether the second axis pays for itself, and the
+              honest way to answer it is to count the rows where the two axes disagree. If they never
+              disagree, the schema is carrying a column for nothing. In our vault they disagree often:
+              retractions lag the world by a median of {n(bit.lagDaysMedian)} days and a 95th
+              percentile of {n(bit.lagDaysP95)}, and at four probe instants between{' '}
+              {pct(Math.min(...bit.disagreements.map((d) => d.share)))} and{' '}
+              {pct(Math.max(...bit.disagreements.map((d) => d.share)))} of all facts answer
+              differently depending on which axis the question asked about.
+            </p>
+          </div>
+
+          <Figure
+            title="Figure 4 — Two axes for one fact"
+            caption="Valid time above, transaction time below, the lag between them shaded. An audit that asks the wrong axis gets a defensible-looking wrong answer."
+            full
+          >
+            <BitemporalDiagram />
+          </Figure>
+
+          <Figure title="Table 6 — Where the axes disagree" full>
+            <BitemporalTable />
+          </Figure>
+
+          <div className="prose">
+            <p>
+              Two caveats, both of which cut against a simple reading. First, Notion&rsquo;s own{' '}
+              <span className="mono">last_edited_time</span> is not transaction time in
+              Snodgrass&rsquo;s sense: it is overwritten in place, so there is no history to query and
+              no way to reconstruct what the vault believed before the last edit. Lore&rsquo;s{' '}
+              <span className="mono">Observed At</span> and{' '}
+              <span className="mono">Invalidated At</span> are doing the work the substrate does not
+              do, and they can do it only once per fact — one observation and one retraction, not a
+              history of belief. Second, our reading of Lore&rsquo;s query paths suggests the surface
+              is narrower than the schema: the <span className="mono">asOf</span> parameter applies a
+              single date, and we did not find a path that filters valid time and transaction time
+              independently. A bitemporal schema with a single-axis query surface is a common and
+              recoverable state — the columns are there when someone wants them — but it is worth
+              naming, and we flag it as inference rather than measurement in §14.
+            </p>
+          </div>
+        </section>
+
+        {/* --------------------------------------------------------- method */}
+        <section id="method" className="section">
+          <h2 className="heading-24">7. Methodology</h2>
+
+          <h3 className="heading-20">7.1 The vault, generated backwards</h3>
+          <div className="prose">
+            <p>
+              Relevance labels chosen by looking at what a store returned are worthless, because the
+              store gets to define what counts as right. So nothing in our corpus is labelled. A world
+              is generated first — services, people, teams, incidents, decisions — and the facts are
+              read off that world by construction, with ownership histories that open and close over
+              540 simulated days. Memories are then <em>rendered</em> from facts: several
+              natural-language restatements of the same triple, scattered across sessions and authors.
+              The correct answer to &ldquo;what is currently true about{' '}
+              <span className="mono">payments-api</span>&rdquo; is therefore definitional: it is the
+              set of facts the generator emitted with an open interval for that subject.
+            </p>
+          </div>
+
+          <Figure title="Table 7 — The generated vault" full>
+            <VaultTable />
+          </Figure>
+
+          <div className="prose">
+            <p>
+              A clean vault would prove nothing, so six defects are injected deliberately. Each is a
+              state the substrate cannot refuse, and each is recorded with its ground-truth extent so
+              that §9 reports detection rates rather than impressions.
+            </p>
+          </div>
+
+          <Figure title="Table 8 — Defects injected on purpose" full>
+            <InjectedTable />
+          </Figure>
+
+          <h3 className="heading-20">7.2 The workload</h3>
+          <div className="prose">
+            <p>
+              The {classes.length} question classes are read off Lore&rsquo;s own surface, not chosen
+              to make a point. If <span className="mono">lore ask &lt;entity&gt;</span> exists, the
+              workload contains an ask-entity question; if{' '}
+              <span className="mono">lore conflicts scan</span> exists, it contains a conflict scan.
+              Each class is annotated with the minimum relational algebra it needs, and with what the
+              documented Data API can state as a query.
+            </p>
+          </div>
+
+          <Figure title="Table 9 — The question classes" full>
+            <WorkloadTable />
+          </Figure>
+
+          <div className="prose">
+            <p>
+              Of the {n(capture.expressibility.instances)} question instances,{' '}
+              {pct(capture.expressibility.shareNeedingJoin)} need a join,{' '}
+              {pct(capture.expressibility.shareNeedingAggregate)} need an aggregate, and{' '}
+              {pct(capture.expressibility.shareNeedingRecursion)} need a transitive closure. Together,{' '}
+              {pct(capture.expressibility.shareNeedingMoreThanFilter)} of the workload needs something
+              the Data API cannot state as a filter.
+            </p>
+          </div>
+
+          <h3 className="heading-20">7.3 The arms</h3>
+          <div className="prose">
+            <p>
+              Three stores answer every question. The <strong>Notion arm</strong> is an emulator whose
+              surface is restricted to operations the public reference documents, and whose refusals
+              are restricted to things that reference does not offer. The <strong>SQLite arm</strong>{' '}
+              runs the reimplemented schema in process through <span className="mono">node:sqlite</span>,
+              with secondary indexes, foreign keys and an FTS5 index over bodies. The{' '}
+              <strong>PostgreSQL arm</strong> runs the same schema through PGlite, adding range-typed
+              validity, a GiST exclusion constraint, and a GIN index over{' '}
+              <span className="mono">to_tsvector</span>. Two ablations drop every secondary index.
+            </p>
+            <p>
+              <strong>What the emulator is not.</strong> We hold no Notion workspace and issue no
+              requests. Wall-clock through an emulator measures our own JavaScript, so we do not report
+              it. What we report instead are counts — requests, bytes, and rows the client had to
+              examine — which are fixed by the API&rsquo;s shape rather than by anyone&rsquo;s network.
+              The documented average of {limits.requestsPerSecond} requests per second then converts a
+              request count into a floor on wall-clock that no bandwidth removes. §14 states what this
+              cannot capture.
+            </p>
+          </div>
+
+          <h3 className="heading-20">7.4 Scoring</h3>
+          <div className="prose">
+            <p>
+              Answers here are sets, not ranked lists, because every question in this workload has a
+              definite answer rather than a best guess. We report set F<sub>1</sub> and, more
+              importantly, the <em>exact</em> rate — the share of questions where the returned set is
+              the correct set with nothing added and nothing missing. For a memory system that is the
+              number that matters: an agent acting on a nearly-correct set of facts acts wrongly.
+            </p>
+          </div>
+        </section>
+
+        {/* ------------------------------------------------- expressibility */}
+        <section id="expressibility" className="section">
+          <h2 className="heading-24">8. Expressibility and cost</h2>
+          <div className="prose">
+            <p>
+              The first result is the one we did not expect to have to lead with:{' '}
+              <strong>the vault is correct</strong>. Across the whole workload the Notion arm returns
+              the exactly-correct set for {pct(capture.byArm.notion.exact, 1)} of questions, the same
+              as SQLite and within a rounding of PostgreSQL, whose {n((1 - capture.byArm.postgres.exact) * capture.workload.instances, 0)}{' '}
+              divergences are the full-text stemming case dissected in §10.2 rather than an error.
+            </p>
+            <p>
+              A critique that expected the substrate to give wrong answers would stop here, and it
+              would be wrong to. The Data API is not a bad store. It is a store that will do the work
+              if you send it enough requests — and the question this paper is actually about is how
+              many.
+            </p>
+          </div>
+
+          <Figure title="Table 10 — Correctness and cost, by arm" full>
+            <ArmTable />
+          </Figure>
+          <Figure
+            title="Table 11 — Exact-answer rate by class"
+            caption="Flat, and that is the point. The differences between these stores are not in this table."
+            full
+          >
+            <CorrectnessMatrix />
+          </Figure>
+
+          <h3 className="heading-20">8.1 Amplification</h3>
+          <div className="prose">
+            <p>
+              Every question in this workload is one statement in SQL. The same questions cost the
+              Data API a mean of {n(capture.byArm.notion.roundTrips, 1)} requests, and the
+              distribution is wildly uneven: two classes cost two or three requests, and two cost more
+              than a thousand.
+            </p>
+          </div>
+
+          <Figure
+            title="Figure 5 — Requests per question, by class"
+            caption="Logarithmic, because a linear axis would render eight of the ten classes as a flat line against body search. Every bar is a mean over that class's instances."
+            full
+          >
+            <BarChart
+              tableLabel="Mean requests per question by class"
+              unit="requests"
+              format={(v) => n(v, v < 10 ? 2 : 0)}
+              data={[...classes]
+                .sort((a, b) => (amp(b.id)?.notionRoundTrips ?? 0) - (amp(a.id)?.notionRoundTrips ?? 0))
+                .map((c) => ({
+                  label: c.label,
+                  value: amp(c.id)?.notionRoundTrips ?? 0,
+                  emphasis: (amp(c.id)?.roundTrips ?? 0) > 100,
+                }))}
+            />
+          </Figure>
+
+          <Figure title="Table 12 — Request amplification" full>
+            <AmplificationTable />
+          </Figure>
+
+          <h3 className="heading-20">8.2 The join that is not there</h3>
+          <div className="prose">
+            <p>
+              Provenance is the cleanest case, and it is one question:{' '}
+              <em>which claims about this predicate came from a memory written by this author?</em> The
+              author lives on Memories. The fact points at the memory through a{' '}
+              <span className="mono">Source</span> relation. In SQL that is a join and the planner
+              picks an index. Through the Data API there is no way to filter Facts by a property of the
+              page its relation points at, so the client queries Facts, then retrieves each candidate
+              memory by identifier, then filters on author locally: {n(provenance.notionRoundTrips, 0)}{' '}
+              requests, {n(provenance.rowsClientSide, 0)} rows examined in the client,{' '}
+              {duration(provenance.notionFloorSeconds)} of floor.
+            </p>
+          </div>
+
+          <Figure
+            title="Figure 6 — One join, two shapes"
+            caption="The comb on the left is one request per candidate fact. The bar on the right is one statement. Both return the same set."
+            full
+          >
+            <RoundTripDiagram />
+          </Figure>
+
+          <div className="prose">
+            <p>
+              The other join-shaped classes behave the same way at smaller scale. Following a decision
+              chain costs {n(amp('supersession')?.notionRoundTrips ?? 0, 2)} requests because{' '}
+              <span className="mono">Supersedes</span> is a{' '}
+              <span className="mono">single_property</span> self-relation with no reverse edge, so
+              &ldquo;what replaced this&rdquo; is a filter and the walk pays a request per hop; a
+              recursive CTE does the whole closure in one statement. Two joins deep — facts about
+              entities introduced by memories a given author wrote — costs{' '}
+              {n(amp('cross-db')?.notionRoundTrips ?? 0, 1)}, and the client has to chunk its own
+              disjunction because <span className="mono">relation contains</span> takes one page
+              identifier at a time and the payload cap is {bytes(limits.payloadBytes)}.
+            </p>
+            <p>
+              Finding contradictions is the aggregate case. It is a self-join with an overlap
+              predicate, and there is no way to express either, so the client fetches every fact on a
+              functional predicate and compares them pairwise: {n(amp('conflict-scan')?.notionRoundTrips ?? 0, 0)}{' '}
+              requests and {n(amp('conflict-scan')?.rowsClientSide ?? 0, 0)} row-comparisons here. This
+              is why Lore ships <span className="mono">lore conflicts scan</span> with a documented cap
+              of {schema.scanCaps[0]?.value} raw candidates per project, and why bypassing the cap is
+              described in its own source as &ldquo;full O(n²) coverage&rdquo;.
+            </p>
+          </div>
+        </section>
+
+        {/* ------------------------------------------------------- integrity */}
+        <section id="integrity" className="section">
+          <h2 className="heading-24">9. Integrity</h2>
+          <div className="prose">
+            <p>
+              Cost is the half of the story a reader expects. The other half is what the store will
+              refuse, and it is the half where the gap is not a multiple but a categorical difference.
+              A database&rsquo;s central service is not answering questions; it is declining to enter
+              states that would make future answers wrong.
+            </p>
+            <p>
+              We took {schema.invariants.length} invariants from the schema, named the DDL that would
+              enforce each one declaratively, and attacked them.{' '}
+              {unenforcedInvariants.length} of the {schema.invariants.length} have no declarative
+              enforcement anywhere in the substrate.
+            </p>
+          </div>
+
+          <Figure title="Table 13 — Invariants and what enforces them" full>
+            <InvariantTable />
+          </Figure>
+          <Figure
+            title="Figure 7 — What the constraint would have been"
+            caption="For each invariant: the one line of DDL that would have declared it, what actually upholds it, and what breaks it."
+            full
+          >
+            <ConstraintDiagram />
+          </Figure>
+
+          <h3 className="heading-20">9.1 Concurrent upsert</h3>
+          <div className="prose">
+            <p>
+              Lore upserts a topic-keyed memory by reading the vault for a matching row and then either
+              creating or patching. The Data API documents no conditional write, so the window between
+              the read and the write cannot be closed from the client. Lore knows this and says so:
+            </p>
+          </div>
+
+          <Src file="src/core/memory-topic-key.ts">
+            &ldquo;Concurrent upserts remain a single-agent serial workflow. Two parallel saves with
+            the same <span className="mono">topicKey</span> can both find no existing match and both
+            create fresh rows with <span className="mono">Revision Count: 1</span>; Notion provides no
+            per-key uniqueness enforcement.&rdquo;
+          </Src>
+
+          <div className="prose">
+            <p>
+              We ran the interleave explicitly rather than depending on a scheduler, because a
+              scheduler-dependent result is not a measurement. With {conc.writers} writers over{' '}
+              {n(conc.rounds)} rounds, every writer reading before any writer writes — the worst case
+              the protocol admits and the one the API gives no way to exclude — the read-then-write
+              path lost {pct(conc.notion.lostUpdateRate)} of its {n(conc.writesAttempted)} updates and
+              left {n(conc.notion.duplicateRows)} duplicate rows for a key that should have one. The
+              same workload through <span className="mono">INSERT … ON CONFLICT</span> against a unique
+              index lost {pct(conc.sql.lostUpdateRate)} and left {n(conc.sql.duplicateRows)}. This is
+              the lost update of Gray <Cite n={51} /> and Berenson <Cite n={52} />, arriving in 2026 by
+              a new route.
+            </p>
+          </div>
+
+          <Figure title="Table 14 — Concurrent upsert on one topic key" full>
+            <ConcurrencyTable />
+          </Figure>
+          <Figure
+            title="Figure 8 — Loss against writer count"
+            caption="Measured at 2, 4, 8 and 16 writers. The unique-index arm is flat at zero, which is why it is drawn rather than omitted."
+            full
+          >
+            <GroupedBars
+              tableLabel="Lost update rate by writer count"
+              unit="lost updates"
+              format={(v) => pct(v, 0)}
+              groups={exp.concurrencySweep.map((p) => ({
+                label: `${p.writers} writers`,
+                bars: [
+                  { label: 'read-then-write', value: p.notionLostUpdateRate },
+                  { label: 'unique index', value: p.sqlLostUpdateRate },
+                ],
+              }))}
+            />
+          </Figure>
+
+          <h3 className="heading-20">9.2 A temporal primary key</h3>
+          <div className="prose">
+            <p>
+              Some predicates are functional: a service has one owner at a time. That is a constraint,
+              and PostgreSQL can declare it — an exclusion constraint over a range type saying that no
+              two rows may share a subject and a predicate while their validity intervals overlap. Once
+              declared, the write that would create the contradiction is the write that fails, and no
+              scan is needed because the state is unreachable.
+            </p>
+            <p>
+              The experiment has two halves, and the first half is the more telling. We built the
+              constraint against the vault <em>as generated</em> and PostgreSQL refused to create it,
+              because {n(temporal.trueConflictKeys)} subject-predicate pairs already violate it. The
+              engine declined to certify data written without it. The second half loads the same rows
+              one at a time with the constraint in place: {n(temporal.postgres.insertedUnderConstraint.accepted)}{' '}
+              accepted, <strong>{n(temporal.postgres.insertedUnderConstraint.rejected)} rejected</strong>,
+              and the rejections are precisely the writes that would have created a contradiction. The
+              vault rejected {n(temporal.notion.rejectedWrites)} of them.
+            </p>
+            <p>
+              We want to be fair about what this shows. Lore is not unaware of contradictions — it
+              ships a scanner for them, with a verdict workflow and an adjudication trail, and the
+              scanner exists precisely because the store cannot refuse the write. The comparison is
+              between <em>preventing</em> a state and <em>detecting</em> it afterwards at O(n²) cost
+              under a cap of {schema.scanCaps[0]?.value}. Detection is a real and useful thing to ship.
+              It is not the same thing.
+            </p>
+          </div>
+
+          <Figure title="Table 15 — The exclusion constraint" full>
+            <TemporalTable />
+          </Figure>
+
+          <h3 className="heading-20">9.3 Referential integrity</h3>
+          <div className="prose">
+            <p>
+              A relation property is not a foreign key. It holds page identifiers, and nothing checks
+              them at write time or complains at read time. When a memory that facts already cite is
+              archived, every relation pointing at it stays intact and stays wrong. In our vault{' '}
+              {n(exp.dangling.archivedMemories)} such memories were archived, leaving{' '}
+              {n(exp.dangling.notion.danglingPointers)} claims whose provenance the store can no longer
+              return. Under <span className="mono">ON DELETE RESTRICT</span> the same operation is
+              refused {n(exp.dangling.sql.refusedWrites)} times out of{' '}
+              {n(exp.dangling.archivedMemories)} and leaves {n(exp.dangling.sql.danglingPointers)}{' '}
+              orphans.
+            </p>
+            <p>
+              This one bit us, twice, inside our own tooling. The subsampling routine that builds
+              smaller vaults for the scaling experiment has to compute referential closure by hand over
+              five foreign keys; both times we missed one, and both times the SQLite arm failed
+              immediately and loudly while every other path would have carried the broken state
+              silently. We have left the incident in a comment in the source, because it is the
+              paper&rsquo;s argument arriving unannounced in the paper&rsquo;s own machinery.
+            </p>
+          </div>
+
+          <Figure title="Table 16 — Archiving a cited memory" full>
+            <DanglingTable />
+          </Figure>
+
+          <h3 className="heading-20">9.4 Entity resolution</h3>
+          <div className="prose">
+            <p>
+              Nothing gives a Notion title a unique index, so the same real thing can be introduced
+              twice by two sessions — once under its name and once under its handle. Our vault contains{' '}
+              {n(res.duplicatePairs)} such pairs, {pct(res.duplicateRate, 2)} of all entities, and{' '}
+              {n(res.splitSubjects)} subjects have their facts split across both rows. An agent asking
+              about one row gets a partial answer and no signal that a second row exists.
+            </p>
+            <p>
+              Lore&rsquo;s merge is careful — non-destructive, idempotent on retry, and archiving the
+              loser only after every fact relation has moved — but it is explicitly single-hop, so a
+              chain A → B → C requires two merges and there is no transitive closure of the kind
+              Swoosh formalises <Cite n={47} />. The cost of a merge is also structural: it is one page
+              update per affected row, non-atomic, at {limits.requestsPerSecond} requests per second.
+              The mean merge in our vault touches {n(res.merge.pageUpdatesPerMerge, 1)} pages and the
+              largest touches {n(res.merge.maxPageUpdates)}. The same merge in SQL is{' '}
+              {n(res.merge.sqlStatements)} statements inside one transaction, which either all happen
+              or none do.
+            </p>
+          </div>
+
+          <Figure title="Table 17 — Entity resolution" full>
+            <ResolutionTable />
+          </Figure>
+
+          <h3 className="heading-20">9.5 Where the measurement disappointed us</h3>
+          <div className="prose">
+            <p>
+              We predicted that resolving an alias through a comma-joined cell would be expensive,
+              because the only operator that reaches inside the cell is a substring test and substring
+              tests over-match. We built the vault with {n(capture.injected.collidingAliases.length)}{' '}
+              aliases deliberately constructed as prefixes of others, and measured.
+            </p>
+            <p>
+              The effect is real and it is small. Across {n(exp.alias.terms)} alias terms, the
+              substring filter returned {n(exp.alias.candidatesFetched)} rows where{' '}
+              {n(exp.alias.exactMatches)} were exact matches — {n(exp.alias.rowsFetchedAndDiscarded)}{' '}
+              rows fetched and discarded, or {pct(exp.alias.wastedShare)} of the traffic. At this
+              vault&rsquo;s alias density the 1NF violation costs one extra query and a client-side
+              re-split, not a flood of false candidates. We report it because a critique that only
+              prints the measurements that went its way is not a measurement, and because the shape of
+              the risk is worth stating even when the magnitude is not: the over-match grows with the
+              number of aliases sharing a prefix, and nothing in the schema bounds that number.
+            </p>
+          </div>
+
+          <Figure title="Table 18 — Alias resolution" full>
+            <AliasTable />
+          </Figure>
+
+          <h3 className="heading-20">9.6 The update anomaly</h3>
+          <div className="prose">
+            <p>
+              The Boyce-Codd violation of §5.3 has a downstream cost that no amount of careful merging
+              fixes, because it is not about the Facts table at all. A fact is restated across memories
+              — a mean of {n(exp.anomaly.restatementMean, 2)} times in our vault, a maximum of{' '}
+              {n(exp.anomaly.restatementMax)} — and those restatements are prose. When the fact
+              changes, the Fact row is updated and the prose is not.
+            </p>
+            <p>
+              Across {n(exp.anomaly.closedFacts)} facts whose validity has closed, we found{' '}
+              {n(exp.anomaly.staleRestatements)} memories still asserting the closed value — a mean of{' '}
+              {n(exp.anomaly.meanPerClosedFact, 2)} per fact. For {n(exp.anomaly.factsWhoseStaleCopiesFillTopK)}{' '}
+              facts, the stale restatements alone would fill a top-ten recall. An agent that retrieves
+              memories rather than facts retrieves the old answer, in a confident sentence somebody
+              wrote, with no marker distinguishing it from the current one.
+            </p>
+          </div>
+
+          <Figure title="Table 19 — Stale restatements" full>
+            <AnomalyTable />
+          </Figure>
+        </section>
+
+        {/* ------------------------------------------------------- retrieval */}
+        <section id="retrieval" className="section">
+          <h2 className="heading-24">10. Retrieval</h2>
+
+          <h3 className="heading-20">10.1 The text is not where the filters are</h3>
+          <div className="prose">
+            <p>
+              A memory in Lore has a title, properties, and a body of blocks. The body is where the
+              sentence lives. Property filters cannot see blocks, and the search endpoint matches
+              titles. So the only way to search completely over what memories <em>say</em>, through the
+              documented API, is to enumerate every memory and fetch each one&rsquo;s children.
+            </p>
+            <p>
+              At this vault&rsquo;s size that is {n(ceiling.now.totalRequests)} requests and{' '}
+              {duration(ceiling.now.floorSeconds)}. Ten times larger is{' '}
+              {duration(ceiling.x10.floorSeconds)}; a hundred times larger is{' '}
+              {duration(ceiling.x100.floorSeconds)}. Either engine answers the same question with one
+              statement against an inverted index it already maintains.
+            </p>
+          </div>
+
+          <Figure title="Table 20 — The cost of a complete body search" full>
+            <CeilingTable />
+          </Figure>
+
+          <div className="prose">
+            <p>
+              <strong>An important qualification.</strong> This measures what the <em>documented</em>{' '}
+              Data API permits, which is what our emulator models. Lore in practice does not do this:
+              it delegates ranking to Notion&rsquo;s own search — a REST endpoint that ranks over
+              titles and bodies, and, behind a feature flag, an internal tool endpoint that is neither
+              publicly documented nor available on every workspace tier. That is a sensible engineering
+              choice and it changes the cost picture materially. It also means Lore owns no index: it
+              cannot pre-filter a semantic query by project or tag (those filters are applied in the
+              client, after ranking), it has no semantic path over Facts at all, and its retrieval
+              quality depends on an endpoint that can be changed or disabled without notice. We could
+              not measure that endpoint and do not claim to have. §14 restates this as the study&rsquo;s
+              main limitation.
+            </p>
+          </div>
+
+          <h3 className="heading-20">10.2 Two indexes, one text, two answers</h3>
+          <div className="prose">
+            <p>
+              The workload turned up a result we did not design for. The phrase{' '}
+              <span className="mono">timed out</span> matches nothing in our corpus as a literal
+              substring — the memories say <em>times out</em>. SQLite&rsquo;s FTS5, whose default
+              tokeniser does not stem, agrees: {n(ft.terms.find((t) => t.term === 'timed out')?.fts5 ?? 0)}{' '}
+              rows. PostgreSQL, asked the same phrase, returns{' '}
+              {n(ft.terms.find((t) => t.term === 'timed out')?.gin ?? 0)}.
+            </p>
+            <p>
+              The reason is visible in the parse. <span className="mono">phraseto_tsquery(&apos;english&apos;, &apos;timed out&apos;)</span>{' '}
+              produces the single lexeme <span className="mono">&apos;time&apos;</span>: the English
+              configuration stems <em>timed</em> to <em>time</em> and drops <em>out</em> as a stopword,
+              so a two-word phrase query collapses into a one-word one and matches every memory that
+              mentions timing at all. Notion&rsquo;s search endpoint returns nothing for any of the
+              eight phrases, because none of them appears in a title.
+            </p>
+            <p>
+              None of the three is wrong. A stemmer is a considered position on what &ldquo;discusses
+              this&rdquo; means, not a bug. What matters for a memory system is that the position is a
+              choice, and that nothing in any of the three answers says which choice was made. An agent
+              asking the same question of two vaults built on two engines reasons from two different
+              sets of facts.
+            </p>
+          </div>
+
+          <Figure title="Table 21 — Three indexes over the same text" full>
+            <FullTextTable />
+          </Figure>
+        </section>
+
+        {/* --------------------------------------------------------- ceiling */}
+        <section id="ceiling" className="section">
+          <h2 className="heading-24">11. The ceiling</h2>
+          <div className="prose">
+            <p>
+              Lore&rsquo;s wake-up hook runs before the first response of every session and loads the
+              latest digest, recent memories, active facts and task-matched context. It is the feature
+              that makes the memory ambient rather than requested, and it is also where a memory
+              system&rsquo;s recurring cost lives.
+            </p>
+            <p>
+              Two quantities scale differently, and separating them is the point of this experiment.
+              The <strong>payload</strong> is capped by construction — {exp.wakeup.config.recentMemories}{' '}
+              memories, {exp.wakeup.config.activeFacts} facts — so the tokens injected into the model on
+              every session start are nearly flat as the vault grows. The <strong>cost of assembling
+              it</strong> is not, because the queries that produce it run against a growing store, and
+              because the text the hook wants to quote lives in bodies, which is one request per memory.
+            </p>
+          </div>
+
+          <Figure title="Table 22 — Wake-up cost as the vault grows" full>
+            <WakeupTable />
+          </Figure>
+
+          <Figure
+            title="Figure 9 — Assembly cost against payload size"
+            caption="Requests to assemble the wake-up context, against the tokens that context contains. The second line is flat by design; the first is not."
+            full
+          >
+            <ScalingChart
+              xLabel="memories in the vault"
+              yLabel="count"
+              formatY={(v) => n(v)}
+              series={[
+                {
+                  id: 'assemble',
+                  label: 'requests to assemble',
+                  points: exp.wakeup.points.map((p) => ({ x: p.memories, y: p.notion.roundTrips })),
+                },
+                {
+                  id: 'tokens',
+                  label: 'tokens injected (approx.)',
+                  points: exp.wakeup.points.map((p) => ({ x: p.memories, y: p.notion.injectedTokensApprox })),
+                },
+              ]}
+            />
+          </Figure>
+
+          <div className="prose">
+            <p>
+              The conclusion a practitioner should take from this is narrow and useful: a memory system
+              that feels slow at scale is usually not slow because the prompt grew. It is slow because
+              assembling a bounded prompt from an unbounded store costs a number of round trips that
+              grows with the store, and a rate limit turns that number into seconds. Lore mitigates
+              this thoughtfully — a per-session marker debounces the hook, the digest exists precisely
+              to compress the starting context, and the hook can be turned off — but the mitigations are
+              caps, and a cap is where a full scan was found to be infeasible.
+            </p>
+          </div>
+        </section>
+
+        {/* -------------------------------------------------------- explore */}
+        <section id="explore" className="section">
+          <h2 className="heading-24">12. Explore the evidence</h2>
+          <div className="prose">
+            <p>
+              Everything below is computed from the same dataset as the figures above. These are the
+              parts of the argument that are easier to feel than to read.
+            </p>
+          </div>
+
+          <Figure title="Explorer 1 — What a question costs" full>
+            <QueryCostExplorer />
+          </Figure>
+          <Figure title="Explorer 2 — Wake-up cost against vault size" full>
+            <VaultSizeExplorer />
+          </Figure>
+          <Figure title="Explorer 3 — The upsert race" full>
+            <WriterRaceExplorer />
+          </Figure>
+        </section>
+
+        {/* ------------------------------------------------------ discussion */}
+        <section id="discussion" className="section">
+          <h2 className="heading-24">13. Discussion</h2>
+
+          <h3 className="heading-20">13.1 What the trade actually buys</h3>
+          <div className="prose">
+            <p>
+              It would be easy, and wrong, to read this paper as an argument that Lore should have used
+              PostgreSQL. The things Lore gets from Notion are not conveniences.
+            </p>
+            <p>
+              <strong>The memory is legible.</strong> A teammate can open the vault, read what the
+              agent believes, and correct it, in a tool they already use, without a client or a query
+              language. No system in the related work offers this. It is the reason a wrong fact gets
+              fixed instead of accumulating.
+            </p>
+            <p>
+              <strong>The permissions already exist.</strong> A vault inherits Notion&rsquo;s
+              permission model. A bespoke store would need its own access control replicated from an
+              identity provider, which is a well-known source of leaks. Lore gets a working
+              authorisation story for free, and that is worth more than several of the guarantees it
+              gives up.
+            </p>
+            <p>
+              <strong>There is no infrastructure.</strong> No server, no backup policy, no migration
+              window, no on-call rotation for the memory system itself. For a team of five to fifty
+              engineers, the entire operational budget is a tool they already pay for.
+            </p>
+            <p>
+              Against that: no uniqueness, no referential integrity, no atomicity across pages, no
+              isolation, no joins, no aggregates, and a rate limit that turns every vault-wide operation
+              into a scheduling problem. The honest summary is that Lore trades every guarantee a
+              database declares for legibility, zero infrastructure and inherited permissions, and then
+              re-implements the discarded guarantees as scanners, migrations and filesystem locks. What
+              is unusual, and creditable, is how openly its own source records where the seams are.
+            </p>
+          </div>
+
+          <h3 className="heading-20">13.2 Where the boundary actually is</h3>
+          <div className="prose">
+            <p>
+              The measurements suggest a specific and non-obvious boundary. Lore&rsquo;s{' '}
+              <em>retrieval</em> path is fine: bounded page windows, server-side filters, a capped
+              payload. What degrades is <em>maintenance and analytics</em> — the conflict scan, the
+              entity backfill, the debt sweep, the aggregate. Those are the operations that touch every
+              row, and every one of them is O(n) HTTP requests paced by a per-operator token bucket.
+              This is why Lore&rsquo;s caps cluster where they do, and why its own dogfood vault of
+              roughly nine hundred facts already saturates the one server-side aggregate it attempts.
+            </p>
+            <p>
+              A practitioner reading this should not conclude &ldquo;do not use Lore&rdquo;. They
+              should conclude: the vault is the system of record because it is legible, and if the
+              vault grows past the point where hygiene passes finish, the answer is a read-side
+              projection — a local relational mirror that carries the indexes, the constraints and the
+              joins, rebuilt from the vault, with the vault remaining the thing humans edit. That is an
+              ordinary architecture with an ordinary name, and nothing in Lore&rsquo;s design forecloses
+              it.
+            </p>
+          </div>
+
+          <h3 className="heading-20">13.3 A note on security</h3>
+          <div className="prose">
+            <p>
+              One observation falls outside the database framing but would be irresponsible to omit,
+              because we met it while reading the source. Lore contains a careful prompt-injection
+              containment layer for <em>upstream</em> vaults: inherited titles and tags are wrapped in
+              inline code, backticks are doubled, control characters are stripped, and every line is
+              labelled as untrusted so the model weights it down. None of that containment is applied
+              to primary-vault content, which is written by an autosave summariser over conversation
+              text, is editable in the Notion UI by any vault member, and is injected into every
+              teammate&rsquo;s session at wake-up. The mitigation exists and is scoped to the boundary
+              the authors considered external. A shared vault is a same-privilege channel among
+              everyone with write access, and it is worth saying so.
+            </p>
+            <p>
+              Relatedly, we note that Lore&rsquo;s documented background-hook invocation includes a
+              flag that disables the assistant&rsquo;s permission prompts alongside a tool allowlist,
+              and that the documentation acknowledges the allowlist may need out-of-band configuration.
+              We did not test this and make no claim about exploitability; we record it because it
+              interacts with the previous paragraph.
+            </p>
+          </div>
+        </section>
+
+        {/* --------------------------------------------------------- threats */}
+        <section id="threats" className="section">
+          <h2 className="heading-24">14. Threats to validity</h2>
+          <div className="prose">
+            <p>
+              <strong>The Notion arm is an emulator.</strong> We hold no workspace and issue no
+              requests. Every restriction it enforces carries a reference page, and it refuses nothing
+              the reference offers — but an emulator cannot capture server-side behaviour that is not
+              documented, and we report counts rather than wall-clock for exactly that reason. A reader
+              who wants the missing number should measure it against a real vault.
+            </p>
+            <p>
+              <strong>We modelled the documented Data API, and Lore uses more than that.</strong> This
+              is the most consequential limitation. Lore&rsquo;s search delegates to Notion&rsquo;s own
+              ranking, including an internal endpoint that is undocumented and tier-gated. Our
+              body-search figure of {n(ceiling.now.totalRequests)} requests describes what the
+              documented API permits, not what Lore does. The direction of the error is known — Lore is
+              cheaper than our figure on that class — and the structural point survives it: Lore owns
+              no index, so it cannot pre-filter a semantic query, has no semantic path over Facts, and
+              depends on an endpoint it does not control.
+            </p>
+            <p>
+              <strong>The corpus is synthetic.</strong> The vault is generated, which is what makes the
+              ground truth definitional and non-circular, and it is also what makes it not a real
+              team&rsquo;s memory. Restatement rates, alias density and the frequency of ownership
+              changes are parameters we chose. We report them, and the seed reproduces the vault
+              exactly, but a real vault would have a different shape and might have a different alias
+              over-match than the {pct(exp.alias.wastedShare)} we measured.
+            </p>
+            <p>
+              <strong>Some claims about Lore&rsquo;s query surface are inference.</strong> We read the
+              schema and a substantial part of the services, but not all of the code paths. Where we
+              say the bitemporal surface is narrower than the schema (§6), or that supersession has no
+              reverse edge, those are readings of the source rather than executions of it, and we have
+              marked them.
+            </p>
+            <p>
+              <strong>PGlite is not a server.</strong> PostgreSQL through WebAssembly is the same
+              source tree, planner and type system, but it is not a claim about throughput and we make
+              none. Nothing in this paper depends on a PostgreSQL latency number.
+            </p>
+            <p>
+              <strong>The concurrency schedule is chosen, not observed.</strong> We place every read
+              before every write because that is the worst case the protocol admits. Real interleavings
+              are less adversarial and the real loss rate would be lower. The point is not the
+              magnitude but that the API offers no way to make the rate zero.
+            </p>
+          </div>
+        </section>
+
+        {/* --------------------------------------------------------- related */}
+        <section id="related" className="section">
+          <h2 className="heading-24">15. Related work</h2>
+          <div className="prose">
+            <p>
+              <strong>Agent memory systems.</strong> MemGPT framed memory as virtual paging with the
+              model as its own memory manager <Cite n={3} />; Letta productionised it as shareable
+              memory blocks maintained by asynchronous agents <Cite n={4} />. Generative Agents
+              introduced the memory stream with recency-, importance- and relevance-weighted retrieval
+              and periodic reflection <Cite n={9} /> — the ancestor of Lore&rsquo;s memory-to-fact
+              promotion and of its confidence decay. Mem0 is the closest thing in the literature to a
+              DML over agent memory, with explicit ADD, UPDATE, DELETE and NOOP operations{' '}
+              <Cite n={5} />. A-MEM argues the opposite case to Lore&rsquo;s — that a fixed schema
+              limits cross-task adaptability, and that notes should link themselves into an emergent
+              network <Cite n={8} />. MemOS is the closest in spirit to this paper&rsquo;s framing,
+              treating memory as a managed resource with provenance and version tracking{' '}
+              <Cite n={21} />, and MIRIX independently arrives at a six-store typed decomposition{' '}
+              <Cite n={22} />.
+            </p>
+            <p>
+              <strong>Temporal knowledge graphs.</strong> Zep and its Graphiti engine are the sharpest
+              prior art for Lore&rsquo;s Facts relation: both attach validity windows to
+              subject-predicate-object edges, and Graphiti is explicit that old facts are invalidated
+              rather than deleted, so a vault can be asked what was true at any point in time{' '}
+              <Cite n={6} /><Cite n={7} />. Lore&rsquo;s schema matches this; §6 argues its query
+              surface reaches less of it.
+            </p>
+            <p>
+              <strong>Retrieval.</strong> The dense-retrieval baseline <Cite n={29} /> is complicated
+              by BEIR&rsquo;s finding that BM25 generalises better out of distribution <Cite n={32} />{' '}
+              and by Sciavolino and colleagues&rsquo; result that dense retrievers underperform badly
+              on entity-centric questions <Cite n={33} /> — which is the regime agent memory lives in,
+              and a good structural argument for Lore&rsquo;s typed Entities table over an
+              undifferentiated vector store. Reciprocal rank fusion <Cite n={34} /> is the fusion rule
+              Lore uses, at the constant its authors recommend.
+            </p>
+            <p>
+              <strong>Databases.</strong> The relational model <Cite n={39} />, the
+              entity-relationship model <Cite n={41} />, temporal databases <Cite n={42} />
+              <Cite n={43} /><Cite n={44} />, slowly changing dimensions <Cite n={45} />, record
+              linkage <Cite n={46} /><Cite n={47} />, provenance <Cite n={48} /><Cite n={49} />,
+              transactions and isolation <Cite n={50} /><Cite n={51} /><Cite n={52} />, RDF and named
+              graphs <Cite n={53} /><Cite n={55} />, truth maintenance <Cite n={56} />, belief revision{' '}
+              <Cite n={57} />, probabilistic databases <Cite n={58} /> and knowledge-graph refinement{' '}
+              <Cite n={60} />. This paper&rsquo;s claim is not that these are novel but that they are
+              load-bearing, and that a memory system arriving at triples with validity intervals and a
+              confidence has arrived somewhere with fifty years of results in it.
+            </p>
+          </div>
+        </section>
+
+        {/* ------------------------------------------------------ conclusion */}
+        <section id="conclusion" className="section">
+          <h2 className="heading-24">16. Conclusion</h2>
+          <div className="prose">
+            <p>
+              Lore is a good schema on a substrate that cannot enforce it. Every one of the five
+              databases is a relation a database designer would recognise, the fact table is bitemporal
+              before most of the field has noticed that it should be, and the maintenance surface —
+              conflict scans, entity merges, dedup backfills — is exactly the surface you build when
+              you know what constraints you would like and cannot declare them.
+            </p>
+            <p>
+              We measured what that costs. Not correctness: the vault answers{' '}
+              {pct(capture.byArm.notion.exact, 1)} of a {n(vault.questions)}-question workload exactly,
+              the same as both engines. It costs requests — {n(totalNotionRoundTrips)} of them against{' '}
+              {n(totalSqlStatements)} statements, {duration(workloadFloorSeconds)} of rate-limit floor,
+              {' '}{times(worstClass ? amp(worstClass.id).roundTrips : 1)} on the worst class — and it
+              costs refusal. Eight agents on one topic key lose {pct(conc.notion.lostUpdateRate)} of
+              their writes. {n(temporal.trueConflictKeys)} subject-predicate pairs assert two things at
+              once, and the constraint that would have prevented every one of them refuses to be added
+              to the vault at all.
+            </p>
+            <p>
+              The lesson generalises past Lore. The agent-memory field is converging on triples with
+              validity intervals, entity registries with aliases, provenance edges and confidence
+              scores. That is a database schema. The question every such system has to answer is not
+              which embedding model to use; it is which of the guarantees a database provides it is
+              choosing to do without, and what it will do instead. Lore answers that question more
+              explicitly than most, in comments in its own source. The contribution of this paper is to
+              put the numbers next to the answer.
+            </p>
+          </div>
+        </section>
+
+        {/* ------------------------------------------------------ references */}
+        <section id="references" className="section">
+          <h2 className="heading-24">References</h2>
+          <ol className="prose" style={{ fontSize: '0.94rem' }}>
+            {REFERENCES.map((r, i) => (
+              <li key={i + 1} id={`ref-${i + 1}`} style={{ marginBottom: '0.6rem' }}>
+                {r.authors}. <em>{r.title}</em>. {r.venue}.{' '}
+                {r.url ? <a className="cite" href={r.url}>{r.url.replace(/^https?:\/\//, '')}</a> : null}
+              </li>
+            ))}
+          </ol>
+        </section>
+
+        {/* -------------------------------------------------------- appendix */}
+        <section id="appendix" className="section">
+          <h2 className="heading-24">Appendices</h2>
+
+          <h3 className="heading-20">A. What we read</h3>
+          <div className="prose">
+            <p>
+              Every claim this paper makes about Lore&rsquo;s implementation was read from one of these
+              files, in a clone at commit <span className="mono">{s.commit}</span>.
+            </p>
+          </div>
+          <SourceTable />
+
+          <h3 className="heading-20">B. The DDL both engines execute</h3>
+          <div className="prose">
+            <p>
+              Generated from the same declaration as the diagram in §4. The PostgreSQL dialect is shown;
+              the SQLite dialect differs only in type names and in the constraints SQLite cannot express.
+            </p>
+          </div>
+          <pre className="code-block"><code>{schema.ddl.postgres.join(';\n\n')};</code></pre>
+
+          <h3 className="heading-20">C. The constraints Notion cannot express</h3>
+          <pre className="code-block"><code>{schema.extraConstraints.postgres.map((c) => `-- ${c.id}${c.note ? `: ${c.note}` : ''}\n${c.sql};`).join('\n\n')}</code></pre>
+
+          <h3 className="heading-20">D. Toolchain and reproduction</h3>
+          <ToolchainTable />
+          <div className="prose">
+            <p>
+              The whole dataset regenerates with{' '}
+              <span className="mono">npm install &amp;&amp; npm run paper</span>. There is no database
+              server to install and no API key to set: SQLite comes from Node&rsquo;s built-in{' '}
+              <span className="mono">node:sqlite</span>, and PostgreSQL runs through PGlite as
+              WebAssembly. The vault is deterministic in its seed, so a rerun reproduces every number
+              on this page.
+            </p>
+          </div>
+        </section>
+
+        <footer className="footer">
+          <p>
+            {AUTHORS.lead} · {AUTHORS.co.join(' · ')} · submitted to {AUTHORS.submittedTo}
+          </p>
+          <p className="meta">
+            Measured {capturedOn} on {capture.machine.cpu}. Subject read at{' '}
+            <span className="mono">{s.commit}</span>. Lore is © Notion Labs, Inc., used under the MIT
+            licence; this paper is coursework and is not affiliated with Notion.
+          </p>
+        </footer>
+      </main>
+    </div>
+  )
+}
+
+/* ----------------------------------------------------------------- refs */
+
+const REFERENCES: { authors: string; title: string; venue: string; url?: string }[] = [
+  { authors: 'Notion', title: 'Building Shared Memory for AI Agents in Notion', venue: 'Notion Engineering Blog, 2026', url: 'https://www.notion.com/blog/building-shared-memory-for-ai-agents-in-notion' },
+  { authors: 'Notion (makenotion)', title: 'lore — persistent, shared AI memory backed by Notion for MCP-compatible assistants', venue: 'GitHub, MIT licence, commit 95c3558', url: 'https://github.com/makenotion/lore' },
+  { authors: 'C. Packer, V. Fang, S. G. Patil, K. Lin, S. Wooders, J. E. Gonzalez', title: 'MemGPT: Towards LLMs as Operating Systems', venue: 'arXiv:2310.08560, 2023', url: 'https://arxiv.org/abs/2310.08560' },
+  { authors: 'Letta', title: 'Sleep-time agents and memory blocks', venue: 'Letta documentation', url: 'https://docs.letta.com/guides/agents/architectures/sleeptime/' },
+  { authors: 'P. Chhikara, D. Khant, S. Aryan, T. Singh, D. Yadav', title: 'Mem0: Building Production-Ready AI Agents with Scalable Long-Term Memory', venue: 'arXiv:2504.19413, 2025', url: 'https://arxiv.org/abs/2504.19413' },
+  { authors: 'P. Rasmussen, P. Paliychuk, T. Beauvais, J. Ryan, D. Chalef', title: 'Zep: A Temporal Knowledge Graph Architecture for Agent Memory', venue: 'arXiv:2501.13956, 2025', url: 'https://arxiv.org/abs/2501.13956' },
+  { authors: 'Zep AI', title: 'Graphiti — build temporal context graphs for AI agents', venue: 'GitHub, Apache-2.0', url: 'https://github.com/getzep/graphiti' },
+  { authors: 'W. Xu, Z. Liang, K. Mei, H. Gao, J. Tan, Y. Zhang', title: 'A-MEM: Agentic Memory for LLM Agents', venue: 'arXiv:2502.12110, 2025', url: 'https://arxiv.org/abs/2502.12110' },
+  { authors: 'J. S. Park, J. C. O’Brien, C. J. Cai, M. R. Morris, P. Liang, M. S. Bernstein', title: 'Generative Agents: Interactive Simulacra of Human Behavior', venue: 'UIST ’23, ACM', url: 'https://dl.acm.org/doi/10.1145/3586183.3606763' },
+  { authors: 'N. Shinn, F. Cassano, E. Berman, A. Gopinath, K. Narasimhan, S. Yao', title: 'Reflexion: Language Agents with Verbal Reinforcement Learning', venue: 'NeurIPS 2023; arXiv:2303.11366', url: 'https://arxiv.org/abs/2303.11366' },
+  { authors: 'G. Wang, Y. Xie, Y. Jiang, A. Mandlekar, C. Xiao, Y. Zhu, L. Fan, A. Anandkumar', title: 'Voyager: An Open-Ended Embodied Agent with Large Language Models', venue: 'arXiv:2305.16291, 2023', url: 'https://arxiv.org/abs/2305.16291' },
+  { authors: 'V. Markovic, L. Obradovic, L. Hajdu, J. Pavlovic', title: 'Optimizing the Interface Between Knowledge Graphs and LLMs for Complex Reasoning (Cognee)', venue: 'arXiv:2505.24478, 2025', url: 'https://arxiv.org/abs/2505.24478' },
+  { authors: 'LangChain', title: 'LangMem SDK for agent long-term memory', venue: 'LangChain Blog, 2025', url: 'https://www.langchain.com/blog/langmem-sdk-launch' },
+  { authors: 'Anthropic', title: 'Effective context engineering for AI agents', venue: 'Anthropic Engineering Blog, 2025', url: 'https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents' },
+  { authors: 'Anthropic', title: 'How Claude remembers your project (Claude Code memory)', venue: 'Claude Code documentation', url: 'https://code.claude.com/docs/en/memory' },
+  { authors: 'OpenAI', title: 'Memory and new controls for ChatGPT', venue: 'OpenAI, 2024', url: 'https://openai.com/index/memory-and-new-controls-for-chatgpt/' },
+  { authors: 'Z. Zhang, X. Bo, C. Ma, R. Li, X. Chen, Q. Dai, J. Zhu, Z. Dong, J.-R. Wen', title: 'A Survey on the Memory Mechanism of Large Language Model based Agents', venue: 'ACM TOIS; arXiv:2404.13501', url: 'https://arxiv.org/abs/2404.13501' },
+  { authors: 'Y. Wu, S. Liang, C. Zhang, Y. Wang, Y. Zhang, H. Guo, R. Tang, Y. Liu', title: 'From Human Memory to AI Memory: A Survey on Memory Mechanisms in the Era of LLMs', venue: 'arXiv:2504.15965, 2025', url: 'https://arxiv.org/abs/2504.15965' },
+  { authors: 'Y. Du, W. Huang, D. Zheng, Z. Wang, S. Montella, M. Lapata, K.-F. Wong, J. Z. Pan', title: 'Rethinking Memory in AI: Taxonomy, Operations, Topics, and Future Directions', venue: 'arXiv:2505.00675, 2025', url: 'https://arxiv.org/abs/2505.00675' },
+  { authors: 'L. Mei et al.', title: 'A Survey of Context Engineering for Large Language Models', venue: 'arXiv:2507.13334, 2025', url: 'https://arxiv.org/abs/2507.13334' },
+  { authors: 'Z. Li et al.', title: 'MemOS: A Memory OS for AI System', venue: 'arXiv:2507.03724, 2025', url: 'https://arxiv.org/abs/2507.03724' },
+  { authors: 'Y. Wang, X. Chen', title: 'MIRIX: Multi-Agent Memory System for LLM-Based Agents', venue: 'arXiv:2507.07957, 2025', url: 'https://arxiv.org/abs/2507.07957' },
+  { authors: 'A. Maharana, D.-H. Lee, S. Tulyakov, M. Bansal, F. Barbieri, Y. Fang', title: 'Evaluating Very Long-Term Conversational Memory of LLM Agents (LoCoMo)', venue: 'ACL 2024; arXiv:2402.17753', url: 'https://arxiv.org/abs/2402.17753' },
+  { authors: 'D. Wu, H. Wang, W. Yu, Y. Zhang, K.-W. Chang, D. Yu', title: 'LongMemEval: Benchmarking Chat Assistants on Long-Term Interactive Memory', venue: 'ICLR 2025; arXiv:2410.10813', url: 'https://arxiv.org/abs/2410.10813' },
+  { authors: 'Anthropic', title: 'Introducing the Model Context Protocol', venue: 'Anthropic News, 25 November 2024', url: 'https://www.anthropic.com/news/model-context-protocol' },
+  { authors: 'Model Context Protocol', title: 'Specification, revision 2024-11-05', venue: 'modelcontextprotocol.io', url: 'https://modelcontextprotocol.io/specification/2024-11-05' },
+  { authors: 'Notion', title: 'Notion API reference: request limits, pagination, database query, search', venue: 'developers.notion.com', url: 'https://developers.notion.com/reference/request-limits' },
+  { authors: 'P. Lewis et al.', title: 'Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks', venue: 'NeurIPS 2020; arXiv:2005.11401', url: 'https://arxiv.org/abs/2005.11401' },
+  { authors: 'V. Karpukhin et al.', title: 'Dense Passage Retrieval for Open-Domain Question Answering', venue: 'EMNLP 2020; arXiv:2004.04906', url: 'https://arxiv.org/abs/2004.04906' },
+  { authors: 'L. Gao, X. Ma, J. Lin, J. Callan', title: 'Precise Zero-Shot Dense Retrieval without Relevance Labels (HyDE)', venue: 'ACL 2023; arXiv:2212.10496', url: 'https://arxiv.org/abs/2212.10496' },
+  { authors: 'S. Robertson, H. Zaragoza', title: 'The Probabilistic Relevance Framework: BM25 and Beyond', venue: 'Foundations and Trends in IR 3(4), 2009', url: 'https://dl.acm.org/doi/10.1561/1500000019' },
+  { authors: 'N. Thakur, N. Reimers, A. Rücklé, A. Srivastava, I. Gurevych', title: 'BEIR: A Heterogeneous Benchmark for Zero-shot Evaluation of Information Retrieval Models', venue: 'NeurIPS 2021; arXiv:2104.08663', url: 'https://arxiv.org/abs/2104.08663' },
+  { authors: 'C. Sciavolino, Z. Zhong, J. Lee, D. Chen', title: 'Simple Entity-Centric Questions Challenge Dense Retrievers', venue: 'EMNLP 2021; arXiv:2109.08535', url: 'https://arxiv.org/abs/2109.08535' },
+  { authors: 'G. V. Cormack, C. L. A. Clarke, S. Büttcher', title: 'Reciprocal Rank Fusion Outperforms Condorcet and Individual Rank Learning Methods', venue: 'SIGIR ’09', url: 'https://dl.acm.org/doi/10.1145/1571941.1572114' },
+  { authors: 'S. Bruch, S. Gai, A. Ingber', title: 'An Analysis of Fusion Functions for Hybrid Retrieval', venue: 'ACM TOIS 42(1), 2023; arXiv:2210.11934', url: 'https://arxiv.org/abs/2210.11934' },
+  { authors: 'D. Edge et al.', title: 'From Local to Global: A Graph RAG Approach to Query-Focused Summarization', venue: 'arXiv:2404.16130, 2024', url: 'https://arxiv.org/abs/2404.16130' },
+  { authors: 'B. J. Gutiérrez, Y. Shu, Y. Gu, M. Yasunaga, Y. Su', title: 'HippoRAG: Neurobiologically Inspired Long-Term Memory for Large Language Models', venue: 'NeurIPS 2024; arXiv:2405.14831', url: 'https://arxiv.org/abs/2405.14831' },
+  { authors: 'B. J. Gutiérrez, Y. Shu, W. Qi, S. Zhou, Y. Su', title: 'From RAG to Memory: Non-Parametric Continual Learning for Large Language Models', venue: 'ICML 2025; arXiv:2502.14802', url: 'https://arxiv.org/abs/2502.14802' },
+  { authors: 'E. F. Codd', title: 'A Relational Model of Data for Large Shared Data Banks', venue: 'CACM 13(6):377–387, 1970', url: 'https://dl.acm.org/doi/10.1145/362384.362685' },
+  { authors: 'E. F. Codd', title: 'Recent Investigations into Relational Data Base Systems', venue: 'IFIP Congress 1974, pp. 1017–1021' },
+  { authors: 'P. P.-S. Chen', title: 'The Entity-Relationship Model — Toward a Unified View of Data', venue: 'ACM TODS 1(1):9–36, 1976', url: 'https://dl.acm.org/doi/10.1145/320434.320440' },
+  { authors: 'R. T. Snodgrass (ed.)', title: 'The TSQL2 Temporal Query Language', venue: 'Kluwer Academic Publishers, 1995' },
+  { authors: 'C. S. Jensen, C. E. Dyreson et al.', title: 'The Consensus Glossary of Temporal Database Concepts', venue: 'LNCS 1399, Springer, 1998', url: 'https://link.springer.com/chapter/10.1007/BFb0053710' },
+  { authors: 'K. Kulkarni, J.-E. Michels', title: 'Temporal Features in SQL:2011', venue: 'ACM SIGMOD Record 41(3):34–43, 2012', url: 'https://dl.acm.org/doi/10.1145/2380776.2380786' },
+  { authors: 'R. Kimball, M. Ross', title: 'The Data Warehouse Toolkit, 3rd edition', venue: 'John Wiley & Sons, 2013' },
+  { authors: 'I. P. Fellegi, A. B. Sunter', title: 'A Theory for Record Linkage', venue: 'JASA 64(328):1183–1210, 1969', url: 'https://www.tandfonline.com/doi/abs/10.1080/01621459.1969.10501049' },
+  { authors: 'O. Benjelloun, H. Garcia-Molina, D. Menestrina, Q. Su, S. E. Whang, J. Widom', title: 'Swoosh: A Generic Approach to Entity Resolution', venue: 'The VLDB Journal 18(1):255–276, 2009', url: 'https://link.springer.com/article/10.1007/s00778-008-0098-x' },
+  { authors: 'P. Buneman, S. Khanna, W.-C. Tan', title: 'Why and Where: A Characterization of Data Provenance', venue: 'ICDT 2001, LNCS 1973', url: 'https://link.springer.com/chapter/10.1007/3-540-44503-X_20' },
+  { authors: 'J. Cheney, L. Chiticariu, W.-C. Tan', title: 'Provenance in Databases: Why, How, and Where', venue: 'Foundations and Trends in Databases 1(4):379–474, 2009', url: 'https://homepages.inf.ed.ac.uk/jcheney/publications/provdbsurvey.pdf' },
+  { authors: 'T. Härder, A. Reuter', title: 'Principles of Transaction-Oriented Database Recovery', venue: 'ACM Computing Surveys 15(4):287–317, 1983', url: 'https://dl.acm.org/doi/10.1145/289.291' },
+  { authors: 'J. N. Gray, R. A. Lorie, G. R. Putzolu, I. L. Traiger', title: 'Granularity of Locks and Degrees of Consistency in a Shared Data Base', venue: 'Modelling in Data Base Management Systems, North Holland, 1976' },
+  { authors: 'H. Berenson, P. A. Bernstein, J. Gray, J. Melton, E. O’Neil, P. O’Neil', title: 'A Critique of ANSI SQL Isolation Levels', venue: 'SIGMOD ’95', url: 'https://dl.acm.org/doi/10.1145/223784.223785' },
+  { authors: 'R. Cyganiak, D. Wood, M. Lanthaler (eds.)', title: 'RDF 1.1 Concepts and Abstract Syntax', venue: 'W3C Recommendation, 2014', url: 'https://www.w3.org/TR/rdf11-concepts/' },
+  { authors: 'S. Harris, A. Seaborne (eds.)', title: 'SPARQL 1.1 Query Language', venue: 'W3C Recommendation, 2013', url: 'https://www.w3.org/TR/sparql11-query/' },
+  { authors: 'J. J. Carroll, C. Bizer, P. Hayes, P. Stickler', title: 'Named Graphs, Provenance and Trust', venue: 'WWW ’05, ACM', url: 'https://dl.acm.org/doi/10.1145/1060745.1060835' },
+  { authors: 'J. Doyle', title: 'A Truth Maintenance System', venue: 'Artificial Intelligence 12(3):231–272, 1979', url: 'https://www.sciencedirect.com/science/article/abs/pii/0004370279900080' },
+  { authors: 'C. E. Alchourrón, P. Gärdenfors, D. Makinson', title: 'On the Logic of Theory Change: Partial Meet Contraction and Revision Functions', venue: 'Journal of Symbolic Logic 50(2):510–530, 1985' },
+  { authors: 'D. Suciu, D. Olteanu, C. Ré, C. Koch', title: 'Probabilistic Databases', venue: 'Morgan & Claypool, 2011' },
+  { authors: 'X. L. Dong et al.', title: 'Knowledge Vault: A Web-Scale Approach to Probabilistic Knowledge Fusion', venue: 'KDD ’14, pp. 601–610', url: 'https://www.cs.ubc.ca/~murphyk/papers/kv-kdd14.pdf' },
+  { authors: 'H. Paulheim', title: 'Knowledge Graph Refinement: A Survey of Approaches and Evaluation Methods', venue: 'Semantic Web 8(3):489–508, 2017', url: 'https://dl.acm.org/doi/10.3233/SW-160218' },
+]

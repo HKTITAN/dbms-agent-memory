@@ -4,10 +4,11 @@ import { GeistMono } from 'geist/font/mono'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'Persistent Memory Architecture in Agents Using DBMS',
+  title: 'Agent memory as a database problem — a review of Notion’s Lore',
   description:
-    'A review paper on persistent memory for AI agents, measured across ten storage architectures — '
-    + 'file stores, SQLite 3.53 and PostgreSQL 18.3 with pgvector — over a labelled corpus of agent memories.',
+    'A review of Notion’s Lore, the open-source agent memory system backed by five Notion databases, '
+    + 'analysed as a database design and reimplemented on SQLite and PostgreSQL to measure what the '
+    + 'substrate cannot express or refuse.',
   authors: [
     { name: 'Harshit Khemani' },
     { name: 'Kush Ahuja' },
@@ -15,17 +16,18 @@ export const metadata: Metadata = {
     { name: 'Kushagra Agrawal' },
   ],
   keywords: [
-    'DBMS', 'database management systems', 'agent memory', 'persistent memory',
-    'entity-relationship model', 'normalization', 'BCNF', 'indexing', 'B-tree',
-    'inverted index', 'HNSW', 'pgvector', 'full-text search', 'ACID', 'transactions',
-    'concurrency control', 'query optimization', 'retrieval-augmented generation',
-    'PostgreSQL', 'SQLite', 'vector database',
+    'DBMS', 'database management systems', 'agent memory', 'Lore', 'Notion',
+    'Model Context Protocol', 'MCP', 'entity-relationship model', 'normalization', 'BCNF',
+    'functional dependency', 'temporal database', 'valid time', 'transaction time',
+    'bitemporal', 'exclusion constraint', 'referential integrity', 'lost update',
+    'entity resolution', 'record linkage', 'provenance', 'full-text search',
+    'PostgreSQL', 'SQLite', 'knowledge graph',
   ],
   openGraph: {
-    title: 'Persistent Memory Architecture in Agents Using DBMS',
+    title: 'Agent memory as a database problem',
     description:
-      'Ten storage architectures for agent memory, measured on one labelled corpus. '
-      + '61.7% of a realistic recall workload cannot be expressed as similarity search.',
+      'Notion’s Lore answers a realistic recall workload correctly — and needs 1 447 HTTP requests '
+      + 'per question to do it, where one SQL statement suffices. A review, with measurements.',
     type: 'article',
   },
 }

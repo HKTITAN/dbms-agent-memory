@@ -1,0 +1,350 @@
+schema: design.v1
+name: vault-deck
+version: 1.1.0
+status: bootstrap
+
+agent:
+  skill: design
+  instructions: |
+    READ this file before generating or editing any UI in deck/. FOLLOW tokens as
+    normative — never hardcode a colour, radius, duration or type size that has a
+    token. UPDATE this file in place when a real decision changes. VERIFY against
+    constraints.never before finishing.
+
+    The one rule that carries the whole system: DEPTH IS A SOLID DARKER EDGE,
+    NEVER A BLUR. Every raised surface pairs a fill with its darker sibling and
+    offsets it with `box-shadow: 0 <lip> 0 <sibling>`. Pressing translates the
+    element down by exactly the lip and removes the shadow, so it lands flush.
+    A soft blurred shadow anywhere in this deck is a bug.
+
+overview: >
+  A conference-style talk deck for a database-systems review of Notion's Lore.
+  The visual language is Duolingo's, re-derived rather than copied: the rules
+  are taken from design.duolingo.com and from Duolingo's shipped production CSS,
+  and then applied to material Duolingo has never rendered — entity-relationship
+  diagrams, round-trip counts, validity intervals. Nothing here reproduces
+  Duolingo's marks, its bespoke typefaces, or its characters.
+
+intent:
+  reference: >
+    A Duolingo lesson screen that happens to be teaching relational algebra.
+    Big rounded geometry, flat fills with no outlines, solid-lip depth, uppercase
+    labels, and one bright accent per idea — carrying charts and schema diagrams
+    that are read at the back of a lecture theatre.
+  direction: >
+    Playful geometry, serious numbers. The chrome is exuberant; every figure that
+    carries evidence is drawn plainly, with a zero baseline and tabular numerals.
+    The joke is that a system critique looks like a language lesson; the joke
+    stops at the data.
+  signature: >
+    The lip. Buttons, cards, table rows, chart bars, the mascots and the slide
+    counter all sit on a solid darker edge. Nothing else in the deck is allowed
+    to be loud.
+  treatment: editorial
+
+voice:
+  register: >
+    Duolingo's four qualities, read off design.duolingo.com/writing/voice:
+    expressive, playful, embracing, worldly. Brief, active, direct. Contractions
+    are fine. Clever in quick doses, never smug and never sarcastic.
+  casing:
+    buttons: UPPERCASE, no punctuation ever inside a button
+    headings: sentence case
+    labels: UPPERCASE with 0.04em tracking
+  numbers: >
+    Numeric even below ten. Comma above 999 in prose; no comma inside a measured
+    quantity rendered as a stat. Never hyphenate a compound like "3 req/s".
+  punctuation: >
+    Serial comma always. No semicolons. Avoid em dashes in UI copy — split the
+    sentence. No punctuation in headlines except an exclamation mark.
+  errors: >
+    Support briefly, do not over-apologise. "Not quite. The store can answer it —
+    it just costs 1 213 requests." Never "Incorrect."
+  forbidden:
+    - Duo, the owl, or any Duolingo character name
+    - "Powered by", "Leverage", "Seamless", "Unlock"
+    - exclamation marks on any slide that reports a defect
+
+tokens:
+  color:
+    # Brand-role colours. Every fill names its darker sibling, because the lip
+    # is the whole visual language. Names follow Duolingo's light-to-dark animal
+    # families so the pairing is legible in the token names themselves.
+    canvas: "#FFFFFF"
+    canvas-sunk: "#F7F7F7"
+    ink: "#3C3C3C"
+    ink-muted: "#777777"
+    ink-faint: "#AFAFAF"
+    rule: "#E5E5E5"
+
+    # Each family is a quad, and the fourth member is the one Duolingo does not
+    # ship. `-lip` is an EDGE colour and may never carry text: feather green
+    # under white measures about 2:1, and Duolingo's own primary buttons fail
+    # WCAG AA on exactly that pair. `-ink` is the darkened sibling that clears
+    # 4.5:1 on both the canvas and the tint. Every piece of text uses `-ink`.
+    relational: "#58CC02"
+    relational-lip: "#58A700"
+    relational-tint: "#D7FFB8"
+    relational-ink: "#37700A"   # 6.03:1 on canvas, 5.42:1 on tint
+
+    substrate: "#1CB0F6"
+    substrate-lip: "#1899D6"
+    substrate-tint: "#DDF4FF"
+    substrate-ink: "#0A6187"    # 6.83:1 on canvas, 6.01:1 on tint
+
+    defect: "#FF4B4B"
+    defect-lip: "#EA2B2B"
+    defect-tint: "#FFDFE0"
+    defect-ink: "#B81C1C"       # 6.52:1 on canvas, 5.24:1 on tint
+
+    cost: "#FFC800"
+    cost-lip: "#E7A601"
+    cost-tint: "#FFF5D3"
+    cost-ink: "#7A5600"         # 6.65:1 on canvas, 6.10:1 on tint
+
+    temporal: "#CE82FF"
+    temporal-lip: "#9069CD"
+    temporal-tint: "#F3E4FF"
+    temporal-ink: "#5D3F90"     # 8.14:1 on canvas, 6.73:1 on tint
+
+    deep: "#2B70C9"
+    deep-lip: "#1453A3"
+
+  typography:
+    # Feather Bold and duolingo-sans are both unlicensable. Nunito is Duolingo's
+    # own designated substitute, named on design.duolingo.com/identity/typography,
+    # and it is the only legally clean route to this feel.
+    family-display: '"Nunito", "Baloo 2", ui-rounded, system-ui, sans-serif'
+    family-ui: '"Nunito", ui-rounded, system-ui, sans-serif'
+    family-mono: '"JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace'
+    weight-display: "900"
+    weight-strong: "800"
+    weight-body: "600"
+    weight-label: "800"
+    size-slide-title: "clamp(2.6rem, 5.2vw, 4.4rem)"
+    size-heading: "clamp(1.6rem, 2.6vw, 2.2rem)"
+    size-body: "clamp(1.05rem, 1.5vw, 1.35rem)"
+    size-caption: "0.95rem"
+    size-label: "0.82rem"
+    size-stat: "clamp(3rem, 7vw, 6rem)"
+    leading-display: "1.05"
+    leading-body: "1.5"
+    tracking-display: "-0.02em"
+    tracking-label: "0.04em"
+
+  radius:
+    sm: "8px"
+    md: "12px"
+    lg: "16px"
+    xl: "24px"
+    pill: "9999px"
+
+  space:
+    "1": "4px"
+    "2": "8px"
+    "3": "12px"
+    "4": "16px"
+    "5": "20px"
+    "6": "24px"
+    "8": "32px"
+    "10": "40px"
+    "12": "48px"
+    "16": "64px"
+    "24": "96px"
+
+  border:
+    stroke: "2px"
+    lip-sm: "2px"
+    lip-md: "4px"
+    lip-lg: "6px"
+
+  motion:
+    ease-pop: "cubic-bezier(.35, 1.8, .35, .83)"
+    ease-settle: "cubic-bezier(.22, 1, .36, 1)"
+    dur-press: "100ms"
+    dur-fast: "200ms"
+    dur-base: "300ms"
+    dur-slow: "400ms"
+
+  elevation:
+    # There is no blur in this system. Elevation is the lip.
+    raised: "0 4px 0 var(--lip-color)"
+    resting: "0 2px 0 var(--lip-color)"
+    flush: "none"
+
+policy:
+  hierarchy: [typography, space, contrast, color]
+  color:
+    accent_cycle: [relational, substrate, cost, temporal, defect]
+    rule: >
+      One accent family per slide. A second family appears only when the slide is
+      literally comparing two things, and then it is always relational vs
+      substrate. Defect red never decorates; it only marks something that is
+      actually broken.
+  if_missing: nearest
+  a11y: >
+    WCAG 2.2 AA for every text-on-fill pair. The -ink tokens are the whole
+    answer: each clears 5.2:1 against both the canvas and its own tint, verified
+    arithmetically rather than by eye. Every animation has a prefers-reduced-motion path that keeps the state
+    change and drops the movement. The deck is keyboard-navigable and every slide
+    is reachable without a pointer.
+
+constraints:
+  always:
+    - Pair every fill with its -lip sibling and offset the shadow by a lip token.
+    - Press states translate down by exactly the lip and set the shadow to none.
+    - Illustration is flat fill with zero strokes; UI chrome is a 2px stroke.
+    - Build illustration from three primitives only — rounded rect, circle, rounded triangle.
+    - Chart bars start at zero and use tabular numerals.
+    - Uppercase labels carry 0.04em tracking.
+    - Text takes an -ink token. -lip tokens are edges and never carry text.
+  never:
+    - A blurred box-shadow anywhere.
+    - A pointed corner on an illustrated shape.
+    - Grey inside an illustration — use the pale tints instead.
+    - An outline on an illustrated shape.
+    - Duolingo's marks, characters, or bespoke typefaces.
+    - Punctuation inside a button label.
+    - An oval drop shadow under a character — shadows are pills.
+    - White text on a bright fill. Duolingo does it; it fails AA; we do not.
+    - A truncated chart axis.
+
+components:
+  button:
+    when: navigation between slides, the presenter's own controls
+    notes: >
+      Deliberately the quiet variant, not the loud one. A bright fill under white
+      text is the one pair this language gets wrong, and deck chrome is not worth
+      failing a contrast check for. The lip mechanism is identical; only the fill
+      and the text colour change.
+    tokens:
+      background: color.canvas
+      lip: color.rule
+      textColor: color.ink
+      rounded: radius.md
+      height: "44px"
+      padding: "0 var(--space-4)"
+      typography: "weight-label / size-label / tracking-label / uppercase"
+    variants:
+      loud: { background: color.relational, lip: color.relational-lip, textColor: color.ink, notes: "ink, never white" }
+      quiet: { background: transparent, lip: none, textColor: color.ink-muted }
+  card:
+    when: a claim, a finding, a table row, a schema box
+    tokens:
+      background: color.canvas
+      border: "var(--stroke) solid var(--rule)"
+      lip: color.rule
+      rounded: radius.md
+      padding: "var(--space-5)"
+    variants:
+      accented: { border: "var(--stroke) solid var(--accent)", lip: accent-lip, background: accent-tint }
+  stat:
+    when: a single measured number that carries a slide
+    tokens:
+      typography: "weight-display / size-stat / leading-display / tabular-nums"
+      textColor: accent
+  meter:
+    when: comparing a cost across arms
+    tokens:
+      track: color.rule
+      fill: accent
+      rounded: radius.pill
+      height: "16px"
+    notes: >
+      Carries the gloss pill Duolingo's progress bar uses — a white pill at 20%
+      opacity in the top third of the fill. It is what makes the bar read as
+      inflated rather than flat.
+  bubble:
+    when: a quotation from Lore's own source
+    tokens:
+      background: color.canvas
+      border: "var(--stroke) solid var(--rule)"
+      rounded: radius.lg
+    notes: >
+      The tail is a 45-degree rotated rounded square inheriting the bubble's
+      border, not a CSS border triangle. That is why the tip is rounded and the
+      outline stays continuous.
+
+patterns:
+  slide:
+    treatment: editorial
+    recipe: >
+      One idea per slide. An uppercase eyebrow label in the accent, a sentence-case
+      title in display weight, then exactly one of: a stat, a chart, a diagram, or
+      at most three cards. Never two of those together.
+  evidence:
+    treatment: utilitarian
+    recipe: >
+      Slides that carry measured numbers drop the exuberance: white ground, ink
+      text, one accent, zero baseline, the source of the number stated under the
+      figure in caption size.
+
+decisions:
+  accent:
+    - if: the slide is about Notion, the Data API, or the vault as shipped
+      then: substrate (blue)
+    - if: the slide is about SQL, constraints, or the reimplementation
+      then: relational (green)
+    - if: the slide reports a round-trip count, a byte count, or a rate limit
+      then: cost (yellow)
+    - if: the slide is about validity intervals or bitemporality
+      then: temporal (purple)
+    - if: the slide reports something that is actually broken
+      then: defect (red)
+  motion:
+    - if: an element enters the viewport
+      then: translateY with ease-pop over dur-fast
+    - if: a layout or scroll position changes
+      then: ease-settle over dur-slow
+    - if: the user presses something
+      then: translateY by the lip over dur-press, no easing curve needed
+    - if: prefers-reduced-motion is set
+      then: keep opacity, drop every transform
+
+rationale:
+  colors: >
+    Duolingo's palette is not a set of colours, it is a set of light-to-dark
+    families. That is why the illustration ramp is named for animals in pairs and
+    why every button ships a fill and a lip. Adopting the families rather than the
+    hexes is what makes an original system feel like this one.
+  elevation: >
+    The single most transferable idea in Duolingo's language: elevation is a solid
+    darker edge, never a soft blur. It reads at any distance, survives projection,
+    and costs nothing to render.
+  typography: >
+    Body weight is 600, not 400. Rounded geometric faces go weedy at 400, which is
+    why Duolingo ships body text at weight 500 and 20px. A lecture theatre wants
+    more, not less.
+  shapes: >
+    Three primitives, rounded everything, no outlines, about fifteen shapes per
+    illustration. Six is too abstract and thirty is noise; Duolingo's own
+    guidance gives those counts.
+
+sources:
+  - url: https://design.duolingo.com/identity/color
+    took: brand palette, neutral ramp, colour hierarchy
+  - url: https://design.duolingo.com/identity/typography
+    took: type roles, leading and tracking rules, Nunito as the sanctioned substitute
+  - url: https://design.duolingo.com/illustration/shape-language
+    took: three primitives, shape counts, flat perspective, pill shadows, no grey
+  - url: https://design.duolingo.com/illustration/characters
+    took: character anatomy rules, geometric eyes, asymmetric mouths
+  - url: https://design.duolingo.com/writing/voice
+    took: the four voice qualities and their is/is-not lists
+  - url: https://design.duolingo.com/writing/style
+    took: uppercase buttons, no punctuation in buttons, numeral rules, serial comma
+  - note: >
+      Duolingo's shipped production CSS, read directly. The brand site publishes
+      no tokens, components, motion or spacing routes; every component and motion
+      value here was measured from the live app and is marked as such.
+    took: lip mechanism, radii census, the two easing curves, duration census
+
+omitted:
+  - integrations
+  - exports
+  - assets
+
+locked:
+  - tokens.color.relational
+  - tokens.color.substrate
+  - constraints.never

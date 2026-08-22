@@ -18,12 +18,12 @@ import { setTimeout as sleep } from 'node:timers/promises'
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const WEB = join(ROOT, 'web')
 const OUT_DIR = join(ROOT, 'paper')
-const OUT = join(OUT_DIR, 'persistent-memory-architecture-in-agents.epub')
+const OUT = join(OUT_DIR, 'agent-memory-as-a-database-problem.epub')
 const PORT = 3124
 const BASE = `http://127.0.0.1:${PORT}`
 
-const TITLE = 'Persistent Memory Architecture in Agents Using DBMS'
-const SUBTITLE = 'Ten storage architectures, measured on one labelled corpus'
+const TITLE = 'Agent memory as a database problem'
+const SUBTITLE = "A review of Notion's Lore, and what happens when its schema is given a database to run on"
 const AUTHORS = ['Harshit Khemani', 'Kush Ahuja', 'Madhav Bassi', 'Kushagra Agrawal']
 
 mkdirSync(OUT_DIR, { recursive: true })
@@ -190,7 +190,7 @@ ${xhtml(c.html)}
 </html>`)
   }
 
-  const uid = 'urn:uuid:dbms-agent-memory-persistent-memory-architecture-in-agents'
+  const uid = 'urn:uuid:lore-review-agent-memory-as-a-database-problem'
   const modified = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z')
 
   zip.file('OEBPS/content.opf',

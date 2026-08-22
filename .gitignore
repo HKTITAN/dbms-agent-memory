@@ -13,14 +13,11 @@ out/
 # Editor state, not project state.
 .cursor/
 
-# Derived artifacts. Everything here is regenerated deterministically — the
-# corpus generator is seeded, so `npm run corpus` reproduces these byte for byte
-# — and together they are 73 MB, which is not worth versioning.
+# Derived artifacts. The vault generator is seeded, so `npm run vault`
+# reproduces `data/vault.json` byte for byte, and at this scale it is 30 MB —
+# not worth versioning.
 #
-# `data/capture.json` is NOT ignored. It takes forty minutes of measurement to
-# reproduce and the site builds from it, so it is the one derived artifact that
-# belongs in the repository.
-data/embeddings.bin
-data/embeddings.idx.json
-data/corpus.json
-data/corpus.scales.json
+# `data/capture.json` is NOT ignored. It is what every figure, every table, every
+# sentence with a number in it, and every slide reads from, so it is the one
+# derived artifact that belongs in the repository.
+data/vault.json

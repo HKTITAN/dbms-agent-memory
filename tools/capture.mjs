@@ -1,392 +1,425 @@
+#!/usr/bin/env node
 /**
- * The measurement harness.
+ * The measurement harness. It produces the entire dataset the paper reads from.
  *
- * Everything the paper claims comes out of this file. It writes one JSON
- * document; the prose, the tables and the charts all read that document, so a
- * number in the text and a number in a figure cannot disagree. No result is
- * transcribed by hand anywhere in the project.
+ * One rule governs this file: no number in the paper is typed by a human. Prose,
+ * tables and charts all read `data/capture.json`, so the text and the evidence
+ * cannot drift apart. If a claim in the paper has a number in it, that number
+ * came from here.
  *
- *   npm run capture          full run
- *   FAST=1 npm run capture   skip the 32k scale and shorten the crash trials
+ * A second rule governs what gets recorded: every arm answers every question,
+ * and the answer is scored against an oracle that no arm can see. Cost is
+ * recorded separately from correctness, because the finding of this study is
+ * that they come apart — the Notion arm is *correct* on the whole workload and
+ * pays between one and four orders of magnitude more to be correct.
  */
 
-import fs from 'node:fs'
-import os from 'node:os'
-import path from 'node:path'
+import { writeFileSync, readFileSync, mkdirSync, statSync } from 'node:fs'
+import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { DatabaseSync } from 'node:sqlite'
+import { cpus, totalmem, platform, arch } from 'node:os'
+import { execSync } from 'node:child_process'
 
-import { build, FAMILIES } from '../engines/index.mjs'
-import { fileVecMeta } from '../engines/file.mjs'
-import { ENTITIES, RELATIONSHIPS, NORMALIZATION, FDS, SECONDARY_INDEXES, ddl } from '../engines/schema.mjs'
-import { tokenize, referentialClosure, DEFAULT_K } from '../engines/contract.mjs'
-import { EmbeddingStore, DIM, MODEL } from './embed.mjs'
-import { validateCorpus, runQuality, runBudget, probeDenseFailure } from './exp/quality.mjs'
-import { crashTrials, lostUpdateTest, anomalyTest } from './exp/integrity.mjs'
+import {
+  QUESTION_CLASSES, CLASS_BY_ID, oracle, scoreSet, timed, mean, percentile,
+  rateLimitFloorMs, NOTION_RPS, NOTION_PAGE_DEFAULT, NOTION_PAGE_MAX,
+} from '../engines/contract.mjs'
+import { build, ARMS, FAMILIES } from '../engines/index.mjs'
+import {
+  ENTITIES, RELATIONSHIPS, NORMALIZATION, FDS, INVARIANTS, PREDICATES,
+  SECONDARY_INDEXES, VAULT_DATABASES, ddl, extraConstraints, NOTION_TYPES,
+  SOURCE, PROPERTY_COUNTS, CONFIDENCE_MODEL, SCAN_CAPS, FUNCTIONAL_PREDICATES,
+  AGENT_WRITABLE,
+} from '../engines/schema.mjs'
+import {
+  danglingProvenance, concurrentUpsert, temporalExclusion, entityResolution,
+  updateAnomaly, propertyLimits, aliasResolution, bitemporalReach,
+} from './exp/integrity.mjs'
+import { wakeUpScaling, searchCeiling, storageProfile } from './exp/cost.mjs'
+import { fullTextSemantics } from './exp/fulltext.mjs'
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const DATA = path.join(ROOT, 'data')
-const WORK = path.join(ROOT, '.work')
-const FAST = !!process.env.FAST
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
+const VAULT = join(ROOT, 'data', 'vault.json')
+const OUT = join(ROOT, 'data', 'capture.json')
+/* The web app imports the dataset at build time, and a Next.js app can only
+   import from inside its own directory. So the file lives in two places, and the
+   harness writes both — because the one thing worse than a duplicated artifact
+   is a duplicated artifact that drifts, and a paper whose prose and whose tables
+   were built from different measurements would be exactly that. */
+const OUT_WEB = join(ROOT, 'web', 'data', 'capture.json')
 
-const log = (s) => process.stdout.write(`${s}\n`)
-const step = (s) => process.stdout.write(`\n── ${s}\n`)
+const t0 = Date.now()
+const log = (...a) => console.log(...a)
 
-/* ------------------------------------------------------------------ setup */
+log('reading vault ...')
+const vault = JSON.parse(readFileSync(VAULT, 'utf8'))
+log(`  ${vault.stats.memories} memories, ${vault.stats.facts} facts, ${vault.stats.entities} entities`)
 
-const corpus = JSON.parse(fs.readFileSync(path.join(DATA, 'corpus.json'), 'utf8'))
-const scalesRaw = JSON.parse(fs.readFileSync(path.join(DATA, 'corpus.scales.json'), 'utf8'))
-const embed = EmbeddingStore.load()
+/* ------------------------------------------------------------ ground truth */
 
-const closure = referentialClosure(corpus.memories)
-const memories = closure.memories
-const kept = new Set(memories.map((m) => m.id))
+log('computing ground truth ...')
+const truth = new Map()
+for (const q of vault.questions) truth.set(q.id, oracle(vault, q))
+const emptyAnswers = [...truth.values()].filter((a) => a.length === 0).length
+log(`  ${truth.size} answers, ${emptyAnswers} of them empty`)
 
-/** Attach the derived fields every engine expects, once, so none of them differ. */
-const prepQueries = (qs) => qs
-  .map((q) => ({ ...q, relevant: q.relevant.filter((id) => kept.has(id)) }))
-  .filter((q) => q.relevant.length > 0)
-  .map((q) => ({ ...q, terms: tokenize(q.text), embedding: embed.get(q.text), k: DEFAULT_K }))
+/* -------------------------------------------------------------- the arms */
 
-const queries = prepQueries(corpus.queries)
-const byMemoryId = new Map(memories.map((m) => [m.id, m]))
+const arms = build(ARMS)
+const armReports = []
 
-/* ------------------------------------------------------ token accounting */
-
-step('token accounting')
-const { AutoTokenizer } = await import('@huggingface/transformers')
-const tok = await AutoTokenizer.from_pretrained('Xenova/gpt-4o')
-const tokenLen = new Map()
-// Encoded one at a time rather than batched: batching needs padding, and a
-// padded length is not the token cost the memory would actually incur.
-for (const m of memories) tokenLen.set(m.id, tok.encode(m.body).length)
-const corpusTokens = [...tokenLen.values()].reduce((s, v) => s + v, 0)
-log(`  ${corpusTokens.toLocaleString()} tokens across ${memories.length.toLocaleString()} memories `
-  + `(mean ${(corpusTokens / memories.length).toFixed(1)})`)
-
-/* ------------------------------------------------- corpus self-validation */
-
-step('corpus validation')
-const validation = validateCorpus({ ...corpus, memories }, embed)
-for (const r of validation.byClass) {
-  log(`  ${r.class.padEnd(11)} overlap=${r.meanTermOverlap.toFixed(3)} `
-    + `rare=${r.meanRareTermOverlap.toFixed(3)} cos=${r.meanCosine.toFixed(3)} rel/q=${r.meanRelevantPerQuery}`)
+for (const arm of arms) {
+  log(`loading ${arm.id} ...`)
+  const loaded = await timed(() => arm.load(vault), 1)
+  armReports.push({
+    id: arm.id,
+    family: arm.family,
+    label: arm.label,
+    blurb: arm.blurb,
+    emulated: arm.emulated,
+    loadMs: Number(loaded.ms.toFixed(1)),
+    loadInfo: loaded.value,
+  })
 }
-log(`  random-pair cosine baseline = ${validation.randomPairCosine}`)
 
-step('dense-retrieval failure forensics')
-const denseFailure = probeDenseFailure(memories, queries, embed, { cls: 'lexical', samples: 6, dim: DIM })
-log(`  top hit is a distractor in ${(denseFailure.topIsDistractorRate * 100).toFixed(0)}% of probes; `
-  + `median rank of first relevant memory = ${denseFailure.medianFirstRelevantRank} of ${memories.length}`)
+/* ------------------------------------------------------------ the workload */
 
-/* ------------------------------------------------------------ main sweep */
+const RUNS = Number(process.env.CAPTURE_RUNS ?? 3)
+const results = [] // one row per (arm, question)
 
-step(`main sweep — ${memories.length} memories, ${queries.length} queries, k=${DEFAULT_K}`)
-const engineResults = []
-for (const eng of build()) {
-  const dir = path.join(WORK, 'main', eng.id)
-  const t0 = Date.now()
-  try {
-    await eng.open({ dir, dim: DIM })
-    const load = await eng.load(memories, embed)
-    const quality = await runQuality(eng, queries, { k: DEFAULT_K, repeats: 3 })
-    const storage = await eng.storage()
-    const budget = await runBudget(eng, queries, tokenLen)
+for (const arm of arms) {
+  log(`running workload on ${arm.id} ...`)
+  let n = 0
+  for (const q of vault.questions) {
+    const expected = truth.get(q.id)
+    // Emulated arms are timed once — a timing through an emulator measures our
+    // own JavaScript, not Notion, so it is recorded and never reported.
+    const runs = arm.emulated ? 1 : RUNS
+    const r = await timed(() => arm.ask(q), runs)
+    const score = scoreSet(r.value.ids, expected)
+    results.push({
+      arm: arm.id,
+      q: q.id,
+      class: q.class,
+      ms: Number(r.ms.toFixed(4)),
+      expected: expected.length,
+      returned: r.value.ids.length,
+      ...score,
+      roundTrips: r.value.ledger.roundTrips,
+      bytesIn: r.value.ledger.bytesIn,
+      bytesOut: r.value.ledger.bytesOut,
+      rowsReturned: r.value.ledger.rowsReturned,
+      rowsClientSide: r.value.ledger.rowsClientSide,
+      unsupported: r.value.ledger.unsupported,
+    })
+    if (++n % 60 === 0) log(`    ${n}/${vault.questions.length}`)
+  }
+}
 
-    // What each engine actually handed back, for one query per class. Aggregate
-    // scores say an arm is worse; this says what "worse" looked like — which
-    // memory it put first, and whether that memory answered the question.
-    const showcase = []
-    for (const cls of [...new Set(queries.map((q) => q.class))]) {
-      const q = queries.find((x) => x.class === cls)
-      const rel = new Set(q.relevant)
-      const res = await eng.recall({ ...q, k: DEFAULT_K })
-      showcase.push({
-        queryId: q.id,
-        class: cls,
-        text: q.text,
-        relevantCount: q.relevant.length,
-        returned: res.ids.map((id, i) => {
-          const m = byMemoryId.get(id)
-          return {
-            rank: i + 1,
-            id,
-            relevant: rel.has(id),
-            distractor: m ? m.factId === null : null,
-            body: m?.body ?? '',
-            sessionId: m?.sessionId ?? null,
-            day: m?.day ?? null,
-            supersededBy: m?.supersededBy ?? null,
-          }
-        }),
-      })
-    }
+/* ------------------------------------------------------------ aggregation */
 
-    // One plan per query class, so §6.3 can show what the engine actually did
-    // rather than what it was asked to do.
-    const plans = []
-    for (const cls of [...new Set(queries.map((q) => q.class))]) {
-      const q = queries.find((x) => x.class === cls)
+function agg(rows) {
+  if (!rows.length) return null
+  const rt = rows.map((r) => r.roundTrips)
+  return {
+    n: rows.length,
+    f1: Number(mean(rows.map((r) => r.f1)).toFixed(4)),
+    exact: Number(mean(rows.map((r) => r.exact)).toFixed(4)),
+    precision: Number(mean(rows.map((r) => r.p)).toFixed(4)),
+    recall: Number(mean(rows.map((r) => r.r)).toFixed(4)),
+    roundTrips: Number(mean(rt).toFixed(2)),
+    roundTripsMedian: percentile(rt, 50),
+    roundTripsP95: percentile(rt, 95),
+    roundTripsMax: Math.max(...rt),
+    bytesIn: Math.round(mean(rows.map((r) => r.bytesIn))),
+    rowsClientSide: Number(mean(rows.map((r) => r.rowsClientSide)).toFixed(1)),
+    rateLimitFloorMs: Math.round(rateLimitFloorMs(mean(rt))),
+    ms: Number(percentile(rows.map((r) => r.ms), 50).toFixed(4)),
+  }
+}
+
+const byArm = {}
+const byArmClass = {}
+for (const arm of arms) {
+  const rows = results.filter((r) => r.arm === arm.id)
+  byArm[arm.id] = agg(rows)
+  byArmClass[arm.id] = {}
+  for (const c of QUESTION_CLASSES) {
+    byArmClass[arm.id][c.id] = agg(rows.filter((r) => r.class === c.id))
+  }
+}
+
+/* The headline ratio: how much more work the substrate Lore ships on has to do. */
+const amplification = {}
+for (const c of QUESTION_CLASSES) {
+  const n = byArmClass.notion[c.id]
+  const s = byArmClass.sqlite[c.id]
+  if (!n || !s) continue
+  amplification[c.id] = {
+    roundTrips: Number((n.roundTrips / Math.max(1, s.roundTrips)).toFixed(1)),
+    bytesIn: Number((n.bytesIn / Math.max(1, s.bytesIn)).toFixed(1)),
+    rowsClientSide: n.rowsClientSide,
+    notionRoundTrips: n.roundTrips,
+    sqlStatements: s.roundTrips,
+    notionFloorSeconds: Number((rateLimitFloorMs(n.roundTrips) / 1000).toFixed(2)),
+  }
+}
+
+/* Expressibility: what share of the workload the Data API can state as a query. */
+const expressibility = (() => {
+  const counts = { expressible: 0, partial: 0, 'client-side join': 0, 'not expressible': 0 }
+  const instances = { expressible: 0, partial: 0, 'client-side join': 0, 'not expressible': 0 }
+  for (const c of QUESTION_CLASSES) {
+    counts[c.notion] += 1
+    instances[c.notion] += vault.questions.filter((q) => q.class === c.id).length
+  }
+  const total = vault.questions.length
+  return {
+    byClass: counts,
+    byInstance: instances,
+    classes: QUESTION_CLASSES.length,
+    instances: total,
+    shareNeedingMoreThanFilter: Number(
+      ((instances.partial + instances['client-side join'] + instances['not expressible']) / total).toFixed(4),
+    ),
+    shareNeedingJoin: Number(
+      (vault.questions.filter((q) => CLASS_BY_ID[q.class].needsJoin).length / total).toFixed(4),
+    ),
+    shareNeedingAggregate: Number(
+      (vault.questions.filter((q) => CLASS_BY_ID[q.class].needsAggregate).length / total).toFixed(4),
+    ),
+    shareNeedingRecursion: Number(
+      (vault.questions.filter((q) => CLASS_BY_ID[q.class].needsRecursion).length / total).toFixed(4),
+    ),
+  }
+})()
+
+/* ------------------------------------------------------------ experiments */
+
+log('integrity: dangling provenance ...')
+const dangling = danglingProvenance(vault)
+
+log('integrity: concurrent topic-key upsert ...')
+const concurrency = concurrentUpsert(vault, { writers: 8, rounds: 200, collisionRate: 1 })
+const concurrencySweep = [2, 4, 8, 16].map((w) => {
+  const r = concurrentUpsert(vault, { writers: w, rounds: 50, collisionRate: 1 })
+  return { writers: w, notionLostUpdateRate: r.notion.lostUpdateRate, notionDuplicateRows: r.notion.duplicateRows, sqlLostUpdateRate: r.sql.lostUpdateRate }
+})
+
+log('integrity: temporal exclusion constraint ...')
+const temporal = await temporalExclusion(vault)
+
+log('integrity: entity resolution ...')
+const resolution = entityResolution(vault)
+
+log('integrity: update anomaly ...')
+const anomaly = updateAnomaly(vault)
+
+log('integrity: alias resolution ...')
+const alias = aliasResolution(vault)
+
+log('temporal: bitemporal reach ...')
+const bitemporal = bitemporalReach(vault)
+
+log('retrieval: full-text semantics ...')
+const searchTerms = [...new Set(vault.questions.filter((x) => x.class === 'body-search').map((x) => x.term))]
+const fulltext = await fullTextSemantics(vault, searchTerms)
+
+log('cost: wake-up scaling ...')
+const wakeup = await wakeUpScaling(vault)
+
+log('cost: search ceiling ...')
+const ceiling = searchCeiling(vault)
+const storage = storageProfile(vault)
+const limits = propertyLimits(vault)
+
+/* Query plans, so §6 can show that the engine chose an index rather than
+   assert that it did. */
+log('collecting query plans ...')
+const plans = {}
+{
+  const sample = {}
+  for (const c of QUESTION_CLASSES) {
+    sample[c.id] = vault.questions.find((q) => q.class === c.id)
+  }
+  for (const arm of arms) {
+    if (!arm.explain) continue
+    plans[arm.id] = {}
+    for (const [cls, q] of Object.entries(sample)) {
+      if (!q) continue
       try {
-        const ex = await eng.explain(q)
-        plans.push({ class: cls, query: q.text, text: ex.text, sql: ex.sql ?? null, plan: ex.plan ?? null })
-      } catch (e) {
-        plans.push({ class: cls, query: q.text, text: `explain unavailable: ${e.message}`, sql: null, plan: null })
+        plans[arm.id][cls] = await arm.explain(q)
+      } catch (err) {
+        plans[arm.id][cls] = { error: String(err.message ?? err).split('\n')[0] }
       }
     }
-
-    engineResults.push({
-      id: eng.id,
-      label: eng.label,
-      short: eng.short,
-      family: eng.family,
-      engine: eng.engine,
-      index: eng.index,
-      note: eng.note,
-      supports: eng.supports,
-      load,
-      quality,
-      storage,
-      budget,
-      plans,
-      showcase,
-      bytesPerMemory: Number((storage.totalBytes / memories.length).toFixed(1)),
-    })
-    log(`  ${eng.id.padEnd(15)} nDCG=${quality.overall.ndcg.toFixed(3)} R=${quality.overall.r.toFixed(3)} `
-      + `p50=${quality.overall.p50Ms.toFixed(2)}ms p95=${quality.overall.p95Ms.toFixed(2)}ms `
-      + `${(storage.totalBytes / 1024 / 1024).toFixed(1)}MB (${((Date.now() - t0) / 1000).toFixed(1)}s)`)
-  } catch (e) {
-    log(`  ${eng.id.padEnd(15)} FAILED: ${e.message}`)
-    engineResults.push({ id: eng.id, label: eng.label, family: eng.family, failed: e.message })
-  } finally {
-    await eng.close().catch(() => {})
   }
 }
 
-/* ------------------------------------------------------ post-filter sweep */
+for (const arm of arms) await arm.close()
 
-step('post-filter collapse')
-const postFilter = []
-{
-  const filtered = queries.filter((q) => q.predicate)
-  for (const of_ of [1, 2, 4, 8, 16, 32, 64, 128]) {
-    const eng = fileVecMeta(of_)
-    await eng.open({ dir: path.join(WORK, 'pf', String(of_)), dim: DIM })
-    await eng.load(memories, embed)
-    let survived = 0, asked = 0, recall = 0, hits = 0, ms = 0
-    for (const q of filtered) {
-      const t = process.hrtime.bigint()
-      const res = await eng.recall({ ...q, k: DEFAULT_K })
-      ms += Number(process.hrtime.bigint() - t) / 1e6
-      survived += Math.min(res.survived, DEFAULT_K)
-      asked += DEFAULT_K
-      const rel = new Set(q.relevant)
-      hits += res.ids.filter((id) => rel.has(id)).length
-      recall += res.ids.filter((id) => rel.has(id)).length / rel.size
-    }
-    await eng.close()
-    postFilter.push({
-      overfetch: of_,
-      fetched: DEFAULT_K * of_,
-      meanSurvivingSlots: Number((survived / filtered.length).toFixed(2)),
-      slotFillRate: Number((survived / asked).toFixed(4)),
-      recall: Number((recall / filtered.length).toFixed(4)),
-      meanMs: Number((ms / filtered.length).toFixed(3)),
-      scanFraction: Number(Math.min(1, (DEFAULT_K * of_) / memories.length).toFixed(4)),
-    })
-    log(`  overfetch ×${String(of_).padEnd(3)} fill=${(survived / asked * 100).toFixed(1)}% `
-      + `recall=${(recall / filtered.length).toFixed(3)} ${(ms / filtered.length).toFixed(2)}ms`)
-  }
+/* --------------------------------------------------------------- assembly */
+
+function toolchain() {
+  const out = { node: process.version }
+  try {
+    const p = JSON.parse(readFileSync(join(ROOT, 'node_modules', '@electric-sql', 'pglite', 'package.json'), 'utf8'))
+    out.pglite = p.version
+  } catch { out.pglite = null }
+  // SQLite ships inside Node as `node:sqlite`; there is no separate version to
+  // report beyond the runtime's own.
+  out.sqlite = `node:sqlite (bundled with ${process.version})`
+  try {
+    out.commit = execSync('git rev-parse --short HEAD', { cwd: ROOT }).toString().trim()
+  } catch { out.commit = null }
+  return out
 }
 
-/* ---------------------------------------------------------- scaling sweep */
-
-step('scaling sweep')
-const scaleTargets = FAST ? [500, 2000, 8000] : [500, 2000, 8000, 32000]
-const scaling = []
-for (const target of scaleTargets) {
-  const raw = scalesRaw[String(target)]
-  if (!raw) continue
-  const cl = referentialClosure(raw.memories)
-  const mem = cl.memories
-  const keepS = new Set(mem.map((m) => m.id))
-  const qs = raw.queries
-    .map((q) => ({ ...q, relevant: q.relevant.filter((id) => keepS.has(id)) }))
-    .filter((q) => q.relevant.length > 0)
-    .map((q) => ({ ...q, terms: tokenize(q.text), embedding: embed.get(q.text), k: DEFAULT_K }))
-
-  const row = { target, memories: mem.length, queries: qs.length, engines: [] }
-  for (const eng of build()) {
-    const dir = path.join(WORK, 'scale', String(target), eng.id)
-    try {
-      await eng.open({ dir, dim: DIM })
-      const load = await eng.load(mem, embed)
-      const quality = await runQuality(eng, qs, { k: DEFAULT_K, repeats: 2 })
-      const storage = await eng.storage()
-      row.engines.push({
-        id: eng.id,
-        ingestMs: Number(load.ingestMs.toFixed(1)),
-        indexMs: Number(load.indexMs.toFixed(1)),
-        p50Ms: quality.overall.p50Ms,
-        p95Ms: quality.overall.p95Ms,
-        ndcg: quality.overall.ndcg,
-        recall: quality.overall.r,
-        bytes: storage.totalBytes,
-        bytesPerMemory: Number((storage.totalBytes / mem.length).toFixed(1)),
-      })
-    } catch (e) {
-      row.engines.push({ id: eng.id, failed: e.message })
-    } finally {
-      await eng.close().catch(() => {})
-    }
-    fs.rmSync(path.join(WORK, 'scale', String(target), eng.id), { recursive: true, force: true })
-  }
-  scaling.push(row)
-  const pg = row.engines.find((e) => e.id === 'pg-hybrid')
-  log(`  ${String(target).padStart(6)} → ${mem.length} memories, ${qs.length} queries`
-    + (pg?.p50Ms != null ? `, pg-hybrid p50=${pg.p50Ms}ms ${(pg.bytes / 1048576).toFixed(1)}MB` : ''))
-}
-
-/* ------------------------------------------------------- ACID experiments */
-
-step('durability under crash')
-const durability = []
-{
-  const trials = FAST ? 5 : 20
-  const cfg = [
-    ['file-append', { seed: 20000, total: 2000000, killAfter: 700 }],
-    ['file-rewrite', { seed: 20000, total: 2000000, killAfter: 700 }],
-    ['sqlite', { seed: 20000, total: 2000000, killAfter: 700 }],
-    ['postgres', { seed: 4000, total: 200000, killAfter: 1500 }],
-  ]
-  for (const [kind, o] of cfg) {
-    const r = await crashTrials(kind, path.join(WORK, 'crash', kind), o, kind === 'postgres' ? Math.min(8, trials) : trials)
-    durability.push(r)
-    log(`  ${kind.padEnd(13)} unreadable=${r.unreadable}/${r.trials} corrupt=${r.corruptTrials} `
-      + `durable≈${r.meanDurable}`)
-    fs.rmSync(path.join(WORK, 'crash', kind), { recursive: true, force: true })
-  }
-}
-
-step('lost updates under concurrency')
-const concurrency = await lostUpdateTest({ writers: 8, rounds: 25, dir: path.join(WORK, 'lu') })
-for (const [k, v] of Object.entries(concurrency.results)) {
-  log(`  ${k.padEnd(9)} expected=${v.expected} observed=${v.observed} lost=${v.lost}`)
-}
-
-step('normalisation anomaly')
-const anomaly = await (async () => {
-  const eng = build().find((e) => e.id === 'pg-hybrid')
-  await eng.open({ dir: path.join(WORK, 'anomaly'), dim: DIM })
-  await eng.load(memories, embed)
-  const r = await anomalyTest({ ...corpus, memories }, eng, queries, DEFAULT_K)
-  await eng.close()
-  fs.rmSync(path.join(WORK, 'anomaly'), { recursive: true, force: true })
-  return r
-})()
-log(`  mean restatements/fact = ${anomaly.restatementsPerFact.mean}, `
-  + `top-${DEFAULT_K} repair leaves ${(anomaly.topKRepair.staleFraction * 100).toFixed(1)}% stale`)
-
-/* ------------------------------------------------------- expressibility */
-
-const classes = [...new Set(queries.map((q) => q.class))]
-const expressibility = {
-  classes: classes.map((c) => {
-    const qs = queries.filter((q) => q.class === c)
-    return {
-      class: c,
-      queries: qs.length,
-      share: Number((qs.length / queries.length).toFixed(4)),
-      similarityExpressible: qs[0].similarityExpressible,
-      rationale: qs[0].rationale,
-      predicate: qs[0].predicate ? { field: qs[0].predicate.field, op: qs[0].predicate.op } : null,
-      example: qs[0].text,
-    }
-  }),
-  similarityExpressible: queries.filter((q) => q.similarityExpressible).length,
-  total: queries.length,
-}
-expressibility.similarityShare = Number((expressibility.similarityExpressible / expressibility.total).toFixed(4))
-
-/* ------------------------------------------------------------------ write */
-
-const toolchain = {
-  node: process.version,
-  sqlite: (() => {
-    const d = new DatabaseSync(':memory:')
-    const v = d.prepare('select sqlite_version() as v').get().v
-    d.close()
-    return v
-  })(),
-  postgres: await (async () => {
-    const { PGlite } = await import('@electric-sql/pglite')
-    const d = await PGlite.create()
-    const v = (await d.query('select version()')).rows[0].version
-    await d.close()
-    return v
-  })(),
-  pglite: JSON.parse(fs.readFileSync(path.join(ROOT, 'node_modules/@electric-sql/pglite/package.json'), 'utf8')).version,
-  pgvector: JSON.parse(fs.readFileSync(path.join(ROOT, 'node_modules/@electric-sql/pglite-pgvector/package.json'), 'utf8')).version,
-  embeddingModel: MODEL,
-  embeddingDim: DIM,
-  tokenizer: 'Xenova/gpt-4o',
-}
-
-const out = {
+const capture = {
   capturedAt: new Date().toISOString(),
-  fast: FAST,
+  durationMs: Date.now() - t0,
   machine: {
-    cpu: os.cpus()[0]?.model?.trim() ?? 'unknown',
-    cores: os.cpus().length,
-    totalMemGB: Math.round(os.totalmem() / 1024 ** 3),
-    platform: os.platform(),
-    arch: os.arch(),
-    release: os.release(),
+    platform: platform(),
+    arch: arch(),
+    cpu: cpus()[0]?.model ?? 'unknown',
+    cores: cpus().length,
+    memoryGb: Number((totalmem() / 1024 ** 3).toFixed(1)),
   },
-  toolchain,
-  k: DEFAULT_K,
-  corpus: {
-    stats: { ...corpus.stats, memories: memories.length, tokens: corpusTokens,
-      meanTokensPerMemory: Number((corpusTokens / memories.length).toFixed(1)) },
-    options: corpus.options,
-    referentialClosureCleared: closure.cleared,
-    validation,
-    denseFailure,
-    queriesUsed: queries.length,
-    sampleMemories: memories.slice(0, 6).map((m) => ({
-      id: m.id, sessionId: m.sessionId, turn: m.turn, kind: m.kind, body: m.body,
-      factId: m.factId, day: m.day, source: m.source, confidence: m.confidence,
-      supersededBy: m.supersededBy, tokens: tokenLen.get(m.id),
-    })),
-    sampleQueries: classes.map((c) => {
-      const q = queries.find((x) => x.class === c)
-      return { id: q.id, class: q.class, text: q.text, relevantCount: q.relevant.length,
-        predicate: q.predicate, similarityExpressible: q.similarityExpressible, rationale: q.rationale }
-    }),
+  toolchain: toolchain(),
+  runs: RUNS,
+
+  /* The subject of the study, recorded so the paper can cite exactly what it read. */
+  subject: {
+    name: 'Lore',
+    repo: 'https://github.com/makenotion/lore',
+    vendor: 'Notion',
+    license: 'MIT',
+    substrate: 'Notion Data API',
+    databases: VAULT_DATABASES,
+    predicates: PREDICATES,
+    surfaces: ['MCP server', 'CLI', 'lifecycle hooks'],
   },
+
+  /* The documented API constraints the emulator enforces, each with its source. */
+  apiLimits: {
+    pageSizeDefault: NOTION_PAGE_DEFAULT,
+    pageSizeMax: NOTION_PAGE_MAX,
+    requestsPerSecond: NOTION_RPS,
+    richTextChars: 2000,
+    relationPages: 100,
+    multiSelectOptions: 100,
+    payloadBytes: 500 * 1024,
+    blocksPerRequest: 1000,
+    searchMatches: 'titles only',
+    conditionalWrites: 'none documented',
+    joins: 'not offered',
+    aggregates: 'not offered',
+    sources: {
+      pagination: 'https://developers.notion.com/reference/intro',
+      requestLimits: 'https://developers.notion.com/reference/request-limits',
+      query: 'https://developers.notion.com/reference/post-database-query',
+      search: 'https://developers.notion.com/reference/post-search',
+    },
+  },
+
+  vault: vault.stats,
+  vaultMeta: vault.meta,
+  injected: vault.injected,
+
   schema: {
     entities: ENTITIES,
     relationships: RELATIONSHIPS,
     normalization: NORMALIZATION,
     fds: FDS,
-    secondaryIndexes: SECONDARY_INDEXES,
+    invariants: INVARIANTS,
+    indexes: SECONDARY_INDEXES,
+    notionTypes: NOTION_TYPES,
+    source: SOURCE,
+    propertyCounts: PROPERTY_COUNTS,
+    confidenceModel: CONFIDENCE_MODEL,
+    scanCaps: SCAN_CAPS,
+    functionalPredicates: [...FUNCTIONAL_PREDICATES],
+    agentWritablePredicates: AGENT_WRITABLE,
     ddl: { sqlite: ddl('sqlite'), postgres: ddl('postgres') },
+    extraConstraints: { sqlite: extraConstraints('sqlite'), postgres: extraConstraints('postgres') },
   },
+
+  workload: {
+    classes: QUESTION_CLASSES,
+    instances: vault.questions.length,
+    perClass: Object.fromEntries(
+      QUESTION_CLASSES.map((c) => [c.id, vault.questions.filter((q) => q.class === c.id).length]),
+    ),
+    emptyAnswers,
+  },
+
   families: FAMILIES,
-  engines: engineResults,
+  arms: armReports,
+  byArm,
+  byArmClass,
+  amplification,
   expressibility,
-  postFilter,
-  scaling,
-  durability,
-  concurrency,
-  anomaly,
+  plans,
+
+  experiments: {
+    dangling,
+    concurrency,
+    concurrencySweep,
+    temporal,
+    resolution,
+    anomaly,
+    alias,
+    bitemporal,
+    fulltext,
+    wakeup,
+    ceiling,
+    storage,
+    limits,
+  },
+
+  /* Every raw row, so a reader can recompute any aggregate above. */
+  rows: results,
 }
 
-fs.mkdirSync(path.join(ROOT, 'web', 'data'), { recursive: true })
-const json = JSON.stringify(out)
-fs.writeFileSync(path.join(DATA, 'capture.json'), json)
-fs.writeFileSync(path.join(ROOT, 'web', 'data', 'capture.json'), json)
+const serialised = JSON.stringify(capture)
+mkdirSync(dirname(OUT), { recursive: true })
+writeFileSync(OUT, serialised)
+mkdirSync(dirname(OUT_WEB), { recursive: true })
+writeFileSync(OUT_WEB, serialised)
 
-step('done')
-log(`  ${(json.length / 1024 / 1024).toFixed(2)} MB → data/capture.json and web/data/capture.json`)
+/* ------------------------------------------------------------------ report */
 
+log('')
+log(`captured in ${((Date.now() - t0) / 1000).toFixed(1)} s`)
+log('')
+log('arm            exact   f1     round trips   bytes in   client rows')
+for (const arm of arms) {
+  const a = byArm[arm.id]
+  log(
+    `${arm.id.padEnd(16)}${a.exact.toFixed(3)}  ${a.f1.toFixed(3)}  ` +
+    `${String(a.roundTrips).padStart(11)}  ${String(a.bytesIn).padStart(9)}  ${String(a.rowsClientSide).padStart(11)}`,
+  )
+}
+log('')
+log('class            notion RT   sql RT   amplification   floor (s)')
+for (const c of QUESTION_CLASSES) {
+  const a = amplification[c.id]
+  if (!a) continue
+  log(
+    `${c.id.padEnd(17)}${String(a.notionRoundTrips).padStart(9)}${String(a.sqlStatements).padStart(9)}` +
+    `${String(a.roundTrips + '×').padStart(16)}${String(a.notionFloorSeconds).padStart(12)}`,
+  )
+}
+log('')
+log(`concurrency   notion lost updates ${(concurrency.notion.lostUpdateRate * 100).toFixed(1)}%  duplicates ${concurrency.notion.duplicateRows}`)
+log(`              sql    lost updates ${(concurrency.sql.lostUpdateRate * 100).toFixed(1)}%  duplicates ${concurrency.sql.duplicateRows}`)
+log(`temporal      conflicts admitted ${temporal.notion.contradictionsAdmitted}, postgres rejected ${temporal.postgres.insertedUnderConstraint.rejected} writes`)
+log(`resolution    ${resolution.duplicatePairs} duplicate entities, ${resolution.staleSubjectStrings} stale subject titles (${(resolution.staleSubjectRate * 100).toFixed(1)}%)`)
+log(`anomaly       ${anomaly.staleRestatements} stale restatements over ${anomaly.closedFacts} closed facts`)
+log(`aliases       ${alias.candidatesFetched} rows fetched for ${alias.exactMatches} exact matches (${(alias.wastedShare * 100).toFixed(1)}% discarded)`)
+log(`bitemporal    ${bitemporal.retractionsLaggingReality} retractions lag reality, median ${bitemporal.lagDaysMedian} days`)
+log(`search floor  ${ceiling.now.totalRequests} requests, ${ceiling.now.floorMinutes} min at ${NOTION_RPS} req/s`)
+log(`full text     ${fulltext.termsWhereIndexesDisagree}/${fulltext.termsTotal} terms where FTS5 and GIN disagree`)
+log('')
+log(`wrote ${OUT} (${(statSync(OUT).size / 1024 / 1024).toFixed(2)} MB)`)
+log(`wrote ${OUT_WEB}`)

@@ -25,8 +25,11 @@ for (const junk of ['file.svg', 'globe.svg', 'next.svg', 'vercel.svg', 'window.s
 }
 
 const assets = [
-  { from: join(PAPER, 'persistent-memory-architecture-in-agents.pdf'), to: join(PUB, 'persistent-memory-architecture-in-agents.pdf'), what: 'PDF' },
-  { from: join(PAPER, 'persistent-memory-architecture-in-agents.epub'), to: join(PUB, 'persistent-memory-architecture-in-agents.epub'), what: 'EPUB' },
+  { from: join(PAPER, 'agent-memory-as-a-database-problem.pdf'), to: join(PUB, 'agent-memory-as-a-database-problem.pdf'), what: 'PDF' },
+  { from: join(PAPER, 'agent-memory-as-a-database-problem.epub'), to: join(PUB, 'agent-memory-as-a-database-problem.epub'), what: 'EPUB' },
+  { from: join(ROOT, 'deck', 'agent-memory-as-a-database-problem-slides.pdf'), to: join(PUB, 'agent-memory-as-a-database-problem-slides.pdf'), what: 'slides PDF' },
+  { from: join(ROOT, 'deck', 'index.html'), to: join(PUB, 'slides', 'index.html'), what: 'slides HTML' },
+  { from: join(ROOT, 'data', 'capture.json'), to: join(PUB, 'capture.json'), what: 'dataset' },
 ]
 
 let missing = 0
@@ -36,6 +39,7 @@ for (const a of assets) {
     missing++
     continue
   }
+  mkdirSync(dirname(a.to), { recursive: true })
   copyFileSync(a.from, a.to)
   console.log(`${a.what.padEnd(5)} -> public/${a.to.split(/[\\/]/).pop()}  ${(statSync(a.to).size / 1024 / 1024).toFixed(2)} MB`)
 }

@@ -54,7 +54,7 @@ function findBrowser() {
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const WEB = join(ROOT, 'web')
 const OUT_DIR = join(ROOT, 'paper')
-const OUT = join(OUT_DIR, 'persistent-memory-architecture-in-agents.pdf')
+const OUT = join(OUT_DIR, 'agent-memory-as-a-database-problem.pdf')
 const PORT = 3123
 const BASE = `http://127.0.0.1:${PORT}`
 
@@ -154,7 +154,7 @@ try {
     headerTemplate: `
       <div style="width:100%;font-family:ui-sans-serif,system-ui,sans-serif;font-size:8pt;
                   color:#8a8a8a;text-align:center;padding:0 16mm;">
-        Persistent Memory Architecture in Agents Using DBMS
+        Agent memory as a database problem &middot; a review of Notion&rsquo;s Lore
       </div>`,
     footerTemplate: `
       <div style="width:100%;font-family:ui-sans-serif,system-ui,sans-serif;font-size:8pt;
