@@ -82,6 +82,13 @@ body{
    thing arrived from below, returning to it should not also arrive from below —
    the deck would lose any sense of which way the reader is travelling. */
 [data-dir="back"] .slide.on .slide-in>*{animation-name:fall}
+/* Held arrow key: the entrance never completes, so it is only ever a flicker.
+   Drop it rather than restart it. */
+[data-fast] .slide.on .slide-in>*{animation:none}
+/* The deck interprets horizontal drags itself; the browser must not also treat
+   them as a scroll or a back-navigation, or the two fight for the same finger. */
+.deck{touch-action:pan-y}
+.slide{will-change:transform}
 .slide.on .slide-in>*:nth-child(2){animation-delay:40ms}
 .slide.on .slide-in>*:nth-child(3){animation-delay:80ms}
 .slide.on .slide-in>*:nth-child(4){animation-delay:120ms}
@@ -1092,6 +1099,7 @@ dialog#downloads::backdrop{background:rgba(60,60,60,.42)}
    lands where it says it does. Nothing here animates layout — only the slide's
    own opacity and its children's transform. */
 (function () {
+  var deck = document.getElementById('deck');
   var slides = Array.prototype.slice.call(document.querySelectorAll('.slide'));
   var bar = document.getElementById('bar');
   var counter = document.getElementById('counter');
@@ -1099,8 +1107,16 @@ dialog#downloads::backdrop{background:rgba(60,60,60,.42)}
   var next = document.getElementById('next');
   var i = 0;
 
+  var lastNav = 0;
+
   function show(k, push) {
     var target = Math.max(0, Math.min(slides.length - 1, k));
+    /* Paging faster than the entrance lasts means the entrance is never seen —
+       it is only replayed from the start, which reads as stutter. Below the
+       animation's own duration, skip it and just change the slide. */
+    var now = (window.performance && performance.now) ? performance.now() : Date.now();
+    document.body.toggleAttribute('data-fast', now - lastNav < 260);
+    lastNav = now;
     document.body.setAttribute('data-dir', target < i ? 'back' : 'forward');
     i = target;
     slides.forEach(function (s, j) { s.classList.toggle('on', j === i); });
@@ -1125,13 +1141,112 @@ dialog#downloads::backdrop{background:rgba(60,60,60,.42)}
   next.addEventListener('click', function () { if (i < slides.length - 1) show(i + 1); });
   prev.addEventListener('click', function () { if (i > 0) show(i - 1); });
 
-  var start = null;
-  document.addEventListener('touchstart', function (e) { start = e.touches[0].clientX; }, { passive: true });
-  document.addEventListener('touchend', function (e) {
-    if (start === null) return;
-    var dx = e.changedTouches[0].clientX - start;
-    if (Math.abs(dx) > 60) show(i + (dx < 0 ? 1 : -1));
-    start = null;
+  /* ---- the swipe --------------------------------------------------------
+     The old handler read one number at touchend and jumped if it exceeded 60px.
+     Nothing moved while the finger did, so a half-swipe was indistinguishable
+     from no swipe until the finger came up — the deck either did nothing or
+     teleported, and there was no way to tell which was coming.
+
+     This tracks. The slide follows the finger 1:1 from where it was grabbed, so
+     the swipe is a direct manipulation rather than a command. At the first and
+     last slide there is nothing to turn to, so resistance builds instead of the
+     motion stopping dead: a hard stop reads as frozen, progressive resistance
+     reads as responsive with nothing more there. On release the landing point is
+     projected from the release velocity rather than read off the release
+     position, which is what makes a flick throw the slide instead of nudging it.
+
+     Touch events rather than Pointer Events, which is not the modern default and
+     is deliberate: with 'touch-action: pan-y' Chrome fires 'pointercancel' after
+     the first 'pointermove' of a horizontal drag and then sends nothing more, so
+     a pointer-based tracker freezes mid-gesture. The touch stream is not
+     cancelled and keeps reporting. Vertical drags are left alone from the first
+     move so a slide taller than the screen still scrolls. */
+
+  var LIFT = 8;              /* movement before the drag commits to being one */
+  var COMMIT = 0.22;         /* fraction of the viewport that counts as a page */
+  var DECEL = 0.995;         /* momentum projection, scroll-deceleration form */
+
+  function rubberband(overshoot, dimension) {
+    /* The further past the end the finger goes, the less the slide follows. */
+    var c = 0.55;
+    return (overshoot * dimension * c) / (dimension + c * Math.abs(overshoot));
+  }
+  function project(velocity) {
+    return (velocity / 1000) * DECEL / (1 - DECEL);
+  }
+
+  var drag = null;
+
+  function setOffset(px, animate) {
+    var el = slides[i];
+    if (!el) return;
+    el.style.transition = animate ? 'transform var(--d-base) var(--ease-settle)' : 'none';
+    el.style.transform = px ? 'translate3d(' + px + 'px,0,0)' : '';
+  }
+
+  deck.addEventListener('touchstart', function (e) {
+    if (e.touches.length !== 1) { drag = null; return; }
+    if (e.target.closest('button, a, dialog')) return;
+    var t = e.touches[0];
+    drag = { x0: t.clientX, y0: t.clientY, lastX: t.clientX, lastT: e.timeStamp, v: 0, axis: null };
+  }, { passive: true });
+
+  deck.addEventListener('touchmove', function (e) {
+    if (!drag || e.touches.length !== 1) return;
+    var t = e.touches[0];
+    var dx = t.clientX - drag.x0;
+    var dy = t.clientY - drag.y0;
+
+    /* Decide the axis once, and only once there is enough movement to mean it.
+       A slide that scrolls vertically must keep scrolling; only a clearly
+       horizontal drag becomes a page turn. */
+    if (drag.axis === null) {
+      if (Math.abs(dx) < LIFT && Math.abs(dy) < LIFT) return;
+      drag.axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
+    }
+    if (drag.axis !== 'x') return;
+    if (e.cancelable) e.preventDefault();
+
+    /* Velocity from the last few milliseconds, not from the whole gesture: what
+       matters at release is how fast the finger was moving when it left. */
+    var dt = e.timeStamp - drag.lastT;
+    if (dt > 0) drag.v = ((t.clientX - drag.lastX) / dt) * 1000;
+    drag.lastX = t.clientX;
+    drag.lastT = e.timeStamp;
+
+    var w = window.innerWidth;
+    var atStart = i === 0 && dx > 0;
+    var atEnd = i === slides.length - 1 && dx < 0;
+    setOffset(atStart || atEnd ? rubberband(dx, w) : dx, false);
+  }, { passive: false });
+
+  function endDrag() {
+    if (!drag) return;
+    var committed = drag.axis === 'x';
+    var dx = drag.lastX - drag.x0;
+    var v = drag.v;
+    drag = null;
+    if (!committed) return;
+
+    var w = window.innerWidth;
+    /* Land where the gesture was going, not where the finger stopped. */
+    var landing = dx + project(v);
+    var wants = landing < -w * COMMIT ? 1 : landing > w * COMMIT ? -1 : 0;
+    var target = Math.max(0, Math.min(slides.length - 1, i + wants));
+
+    if (target === i) { setOffset(0, true); return; }
+
+    var leaving = slides[i];
+    show(target);
+    if (leaving) { leaving.style.transition = 'none'; leaving.style.transform = ''; }
+    setOffset(0, false);
+  }
+
+  deck.addEventListener('touchend', endDrag, { passive: true });
+  deck.addEventListener('touchcancel', function () {
+    if (!drag) return;
+    drag = null;
+    setOffset(0, true);
   }, { passive: true });
 
   /* The deck has two homes: published under /slides/ on the site, and opened
