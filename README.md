@@ -1,4 +1,4 @@
-# Agent memory as a database problem
+# Persistent memory architecture for agents
 
 A review paper on **[Notion's Lore](https://github.com/makenotion/lore)** — the open-source
 memory system that gives AI assistants a persistent, shared vault backed by five Notion
@@ -12,9 +12,9 @@ BTech CSE coursework, DBMS.
 **Submitted to** Dr. Poonam Sangwan
 
 Read online at **[dbms-memory.khe.money](https://dbms-memory.khe.money)** · the
-[paper](paper/agent-memory-as-a-database-problem.pdf) ·
-the [ePub](paper/agent-memory-as-a-database-problem.epub) ·
-the [talk](deck/agent-memory-as-a-database-problem-slides.pdf) ·
+[paper](paper/persistent-memory-architecture-for-agents.pdf) ·
+the [ePub](paper/persistent-memory-architecture-for-agents.epub) ·
+the [talk](deck/persistent-memory-architecture-for-agents-slides.pdf) ·
 the [dataset](data/capture.json).
 
 ---
@@ -123,19 +123,30 @@ internal endpoint that is undocumented and tier-gated, which we could not model.
 
 ## Design
 
-The **paper** is light-theme, print-first, academic: monochrome canvas with a single warm
-accent, typography before surfaces, honest chart encodings with zero baselines, tabular
-numerals, and WCAG 2.2 AA contrast verified arithmetically rather than by eye.
+One language, three editions, one contract: [`.design`](.design).
 
-The **talk** uses Duolingo's design language, re-derived rather than copied — the rules from
-[design.duolingo.com](https://design.duolingo.com/) and from Duolingo's shipped production
-CSS, applied to material Duolingo has never rendered. Its contract is `deck/.design`. The one
-rule that carries it: *depth is a solid darker edge, never a blur.* Nothing reproduces
+The **talk** and the **paper's web edition** both use Duolingo's design language, re-derived
+rather than copied — the rules from [design.duolingo.com](https://design.duolingo.com/) and
+from Duolingo's shipped production CSS, applied to material Duolingo has never rendered. The
+rule that carries it: *depth is a solid darker edge, never a blur.* Every raised surface
+offsets a fill against its darker sibling, and pressing lands it flush. Nothing reproduces
 Duolingo's marks, its bespoke typefaces, or its characters; the three creatures are original,
 built from the three primitives its shape language allows. Nunito is used because Duolingo's
 own typography page names it as the substitute for its unlicensable faces.
 
-Both are checked by `tools/audit.mjs` at 1280, 768 and 375 px.
+The deck is the language at full volume. The web paper is the same tokens applied to a
+document that is read rather than glanced at: the chrome carries the language and the reading
+column stays calm. In both, the joke stops at the data — every figure that carries evidence is
+drawn plainly, on a zero baseline, in tabular numerals, and colour is never the only signal.
+
+The **PDF** inherits none of it. Source Serif on a 130 mm measure, booktabs rules, no colour
+and no rounding, because it is a review paper and not a screenshot of a website. The boundary
+is a single appended `@media print` block at the foot of `web/app/globals.css`.
+
+WCAG 2.2 AA is verified arithmetically rather than by eye, against the darkest surface each
+colour is actually set on — which is why the accent splits into a fill, an edge, a tint and an
+ink, and why text only ever takes the ink. `tools/audit.mjs` checks the paper at 1280, 768 and
+375 px, the machine canvas at 1280, and the deck at 1280 and 375.
 
 ## Deploying
 

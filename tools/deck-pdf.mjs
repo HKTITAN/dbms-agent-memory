@@ -19,7 +19,7 @@ import { setTimeout as sleep } from 'node:timers/promises'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const DECK = join(ROOT, 'deck')
-const OUT = join(DECK, 'agent-memory-as-a-database-problem-slides.pdf')
+const OUT = join(DECK, 'persistent-memory-architecture-for-agents-slides.pdf')
 const PORT = 3125
 
 function findBrowser() {

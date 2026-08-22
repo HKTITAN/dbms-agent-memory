@@ -9,7 +9,7 @@
  *
  * THE DESIGN LANGUAGE
  *
- * Duolingo's, re-derived rather than copied, per `deck/.design`. The rules come
+ * Duolingo's, re-derived rather than copied, per `.design`. The rules come
  * from design.duolingo.com and from Duolingo's shipped production CSS; the marks,
  * the bespoke typefaces and the characters do not. Nunito is used because
  * Duolingo's own typography page names it as the substitute for its unlicensable
@@ -161,8 +161,8 @@ const ftTerm = E.fulltext.terms.find((t) => t.term === 'timed out') ?? E.fulltex
 const SLIDES = [
   /* 1 */ slide('relational', null, null, `
     <p class="kicker">Database Management Systems · review paper</p>
-    <h1 class="hero">Agent memory is a database problem.</h1>
-    <p class="sub">Nobody wanted it to be. We measured it anyway.</p>
+    <h1 class="hero">Persistent memory architecture for agents</h1>
+    <p class="sub">Agent memory is a database problem. Nobody wanted it to be. We measured it anyway.</p>
     <div class="cast">${CHAR.page('relational')}${CHAR.barrel('substrate')}${CHAR.lock('cost')}</div>
     <p class="byline">Harshit Khemani · Kush Ahuja · Madhav Bassi · Kushagra Agrawal<br>
       <span class="dim">Submitted to Dr. Poonam Sangwan</span></p>
@@ -416,8 +416,8 @@ const SLIDES = [
     <div class="cast">${CHAR.page('relational')}${CHAR.barrel('substrate')}${CHAR.lock('cost')}</div>
     <p class="byline">Read the paper · <span class="mono">dbms-memory.khe.money</span></p>
     <p class="byline">
-      <a class="inline-dl" href="/agent-memory-as-a-database-problem-slides.pdf" data-local="agent-memory-as-a-database-problem-slides.pdf" download>Slides</a> ·
-      <a class="inline-dl" href="/agent-memory-as-a-database-problem.pdf" data-local="../paper/agent-memory-as-a-database-problem.pdf" download>Paper</a> ·
+      <a class="inline-dl" href="/persistent-memory-architecture-for-agents-slides.pdf" data-local="persistent-memory-architecture-for-agents-slides.pdf" download>Slides</a> ·
+      <a class="inline-dl" href="/persistent-memory-architecture-for-agents.pdf" data-local="../paper/persistent-memory-architecture-for-agents.pdf" download>Paper</a> ·
       <a class="inline-dl" href="/capture.json" data-local="../data/capture.json" download>Dataset</a>
     </p>
   `, { center: true }),
@@ -430,7 +430,7 @@ const html = `<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Agent memory as a database problem</title>
+<title>Persistent memory architecture for agents</title>
 <meta name="description" content="A talk on Notion's Lore, reviewed as a database design and measured against SQLite and PostgreSQL.">
 <!-- Inline, so the deck asks the network for nothing but its typeface. The mark
      is the lip: a fill sitting on its own darker edge. -->
@@ -440,7 +440,7 @@ const html = `<!doctype html>
 <link href="https://fonts.googleapis.com/css2?family=Nunito:ital,wght@0,600;0,800;0,900;1,700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
 <style>
 /* ===========================================================================
-   Tokens, from deck/.design. Depth is a solid darker edge, never a blur.
+   Tokens, from .design. Depth is a solid darker edge, never a blur.
    ======================================================================== */
 :root{
   --canvas:#FFFFFF; --canvas-sunk:#F7F7F7;
@@ -762,11 +762,11 @@ ${SLIDES.join('\n')}
     <button class="btn" id="dl-close" aria-label="Close downloads">Close</button>
   </div>
   <ul class="dl-list">
-    <li><a class="dl" href="/agent-memory-as-a-database-problem-slides.pdf" data-local="agent-memory-as-a-database-problem-slides.pdf" download>
+    <li><a class="dl" href="/persistent-memory-architecture-for-agents-slides.pdf" data-local="persistent-memory-architecture-for-agents-slides.pdf" download>
       <span class="dl-k">These slides</span><span class="dl-m">PDF &middot; ${SLIDES.length} pages &middot; 16:9</span></a></li>
-    <li><a class="dl" href="/agent-memory-as-a-database-problem.pdf" data-local="../paper/agent-memory-as-a-database-problem.pdf" download>
+    <li><a class="dl" href="/persistent-memory-architecture-for-agents.pdf" data-local="../paper/persistent-memory-architecture-for-agents.pdf" download>
       <span class="dl-k">The paper</span><span class="dl-m">PDF &middot; A4 &middot; the full review</span></a></li>
-    <li><a class="dl" href="/agent-memory-as-a-database-problem.epub" data-local="../paper/agent-memory-as-a-database-problem.epub" download>
+    <li><a class="dl" href="/persistent-memory-architecture-for-agents.epub" data-local="../paper/persistent-memory-architecture-for-agents.epub" download>
       <span class="dl-k">The paper</span><span class="dl-m">ePub &middot; reflows on an e-reader</span></a></li>
     <li><a class="dl" href="/capture.json" data-local="../data/capture.json" download>
       <span class="dl-k">The dataset</span><span class="dl-m">JSON &middot; every number on every slide</span></a></li>

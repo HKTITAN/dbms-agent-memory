@@ -1,97 +1,159 @@
 @import "tailwindcss";
 
 /* ============================================================================
-   Zero Compiler Phases — design foundation. Light theme only.
+   Persistent memory architecture for agents — design foundation.
 
-   Rules encoded here and where they come from:
-   - Vercel brand guidelines: monochrome canvas, typography before surfaces,
-     Geist Sans for prose / Geist Mono for identifiers, no decorative gradients,
-     honest data encodings, tabular numerals in evidence.
-   - Web interface guidelines + ui-review: visible focus, 44px touch targets,
-     no layout shift, reduced-motion path on everything that moves.
+   TWO EDITIONS, ONE SOURCE. Everything above the guard at the foot of this file
+   is the screen edition. Everything inside that guard defends the printed one.
+
+   The screen edition speaks Duolingo's design language, re-derived from
+   design.duolingo.com rather than copied: light-to-dark colour families, a 2px
+   stroke, big rounded geometry, uppercase labels, Nunito — the substitute
+   Duolingo itself names, since its own faces are unlicensable — and above all
+   the lip. Depth in this system is a SOLID DARKER EDGE, never a blur. Every
+   raised surface offsets a fill against its darker sibling with
+   `box-shadow: 0 <lip> 0 <sibling>`, and pressing translates down by exactly
+   that lip so the control lands flush. A soft blurred shadow anywhere on the
+   screen edition is a bug. The full contract is .design, which the deck and
+   this stylesheet now share.
+
+   The joke is that a systems review looks like a language lesson. The joke stops
+   at the data: every figure that carries evidence is drawn plainly, on a zero
+   baseline, in tabular numerals, and colour is never the only signal.
+
+   The printed edition inherits none of it. It is set in Source Serif on a 130mm
+   measure with booktabs rules and no colour, because it is a review paper and
+   not a screenshot of a website.
+
+   Also encoded here, unchanged by the language switch:
+   - Web interface guidelines: visible focus, 44px targets, no layout shift, a
+     reduced-motion path on everything that moves.
+   - WCAG 2.2 AA on every text-on-fill pair, verified arithmetically. This is
+     why the accent family splits: Feather Green holds white text at 2.09:1,
+     which fails even the large-text floor, so text never sits on it.
    - animations skill: transform/opacity only, sub-300ms, exits ~25% faster than
-     enters, strong custom curves over built-in keywords, transitions (not
-     keyframes) for anything a user can reverse mid-flight.
+     enters, transitions rather than keyframes for anything reversible.
    ========================================================================= */
 
 @theme {
-  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  /* Feather Bold and duolingo-sans are unlicensable. Nunito is Duolingo's own
+     designated substitute — it is the family named on their identity page — and
+     it is the only legally clean route to this feel. Geist Mono stays for
+     identifiers: Duolingo ships no monospace, and a paper about schemas needs
+     one that distinguishes 1/l/I and 0/O. */
+  --font-sans: var(--font-nunito), ui-rounded, "Segoe UI", system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, "SF Mono", monospace;
 }
 
 :root {
   color-scheme: light only;
 
-  /* ---- surfaces. Warm-neutral, never pure white: #fff on a screen is a flat
-     wall, and the paper reads for 30 pages. */
-  --bg: #fcfcfb;
+  /* ---- surfaces. Duolingo's canvas is pure white, not the warm off-white this
+     paper used to sit on. That was the right call for a monochrome reading
+     surface and it is the wrong one here: the whole system depends on flat
+     bright fills reading as *fills*, and they only do that against white. */
+  --bg: #ffffff;
   --bg-raised: #ffffff;
-  --bg-sunken: #f5f4f2;
-  --bg-inset: #efeeeb;
+  --bg-sunken: #f7f7f7;
+  --bg-inset: #efefef;
   --surface: #ffffff;
 
-  /* ---- text. Never pure black; #16150f keeps the warm cast of the canvas. */
-  --text: #16150f;
-  --text-secondary: rgba(22, 21, 15, 0.70);
-  --text-tertiary: rgba(22, 21, 15, 0.62);
-  /* 0.54 alpha measured 3.91:1 on the canvas — under the 4.5:1 floor for the
-     12-13px labels that use it. 0.66 clears it while keeping the step below
-     --text-tertiary visible. */
-  --text-faint: rgba(22, 21, 15, 0.66);
+  /* ---- text. Eel, not black. Duolingo never sets pure black on white. */
+  --text: #3c3c3c;
+  --text-secondary: #5b5b5b;
+  /* Duolingo's own Hare (#777) measures 4.48:1 on white — a rounding error under
+     the 4.5:1 floor, and these carry 12–13px labels.
 
-  --border: rgba(22, 21, 15, 0.13);
-  --border-strong: rgba(22, 21, 15, 0.26);
-  --border-faint: rgba(22, 21, 15, 0.07);
+     The value has to clear the floor against the DARKEST surface it is ever set
+     on, not against the canvas. These greys label figure feet, captions and
+     chart keys, and all of those sit on --bg-sunken or --bg-inset rather than on
+     white: #757575 clears 4.61:1 on the canvas and only 4.01:1 on #efefef, which
+     is 57 real failures across the paper. #6b6b6b is the lightest grey that
+     clears 4.5:1 on the inset (4.63:1, and 5.33:1 on the canvas). */
+  --text-tertiary: #6b6b6b;
+  --text-faint: #636363;
 
-  /* ---- the single warm accent. Used only where it carries meaning, and never
-     as the sole signal — always paired with text or shape. */
-  --accent: #b45309;
-  --accent-hover: #92400e;
-  --accent-quiet: rgba(180, 83, 9, 0.09);
-  --accent-line: rgba(180, 83, 9, 0.28);
-  --accent-text: #8a4008;
+  --border: #e5e5e5;        /* Swan */
+  --border-strong: #afafaf;  /* Hare */
+  --border-faint: #f0f0f0;
 
-  /* ---- data encodings, ordered by phase. Distinguishable in greyscale by the
-     luminance ramp, so colour is never load-bearing on its own. */
-  --data-1: #a8a49a;
-  --data-2: #78736a;
-  --data-3: #47433c;
-  --data-4: #b45309;
-  --data-grid: rgba(22, 21, 15, 0.08);
+  /* ---- the accent, as a family rather than a colour.
+     Feather Green is a FILL. White on #58cc02 measures 2.09:1, which fails even
+     the 3:1 large-text floor — Duolingo's own primary buttons fail exactly this
+     pair. So the family splits by job: `--accent` fills things that carry no
+     text, `--accent-strong` is the darkened fill that holds white type (4.91:1),
+     `--accent-text` is the ink that sits on white or on the tint (6.03:1), and
+     `--accent-lip` is an edge and never touches a glyph. */
+  --accent: #58cc02;
+  --accent-strong: #3c8000;
+  --accent-hover: #4a9c00;
+  --accent-lip: #2f6600;
+  --accent-quiet: #d7ffb8;
+  --accent-line: #58a700;
+  --accent-text: #37700a;
 
-  /* ---- state colours. Each is paired with a glyph or word at every use site. */
-  --ok: #3f6212;
-  --ok-quiet: rgba(63, 98, 18, 0.10);
-  --bad: #9f1239;
-  --bad-quiet: rgba(159, 18, 57, 0.09);
+  /* ---- the other four families, carried over from .design so a figure
+     drawn on a slide and the same figure in the paper are the same colour.
+     Each is fill / lip / tint / ink, and only `-ink` ever carries text. */
+  --substrate: #1cb0f6;  --substrate-lip: #1899d6;
+  --substrate-tint: #ddf4ff; --substrate-ink: #0a6187;
 
-  /* ---- depth. Two layers minimum: ambient + direct, both very low opacity. */
-  --shadow-sm:
-    0 1px 1px rgba(22, 21, 15, 0.04),
-    0 1px 2px rgba(22, 21, 15, 0.05);
-  --shadow-raised:
-    0 1px 2px rgba(22, 21, 15, 0.04),
-    0 4px 12px rgba(22, 21, 15, 0.05);
-  --shadow-lifted:
-    0 1px 2px rgba(22, 21, 15, 0.05),
-    0 8px 24px rgba(22, 21, 15, 0.07);
+  --cost: #ffc800;       --cost-lip: #e7a601;
+  --cost-tint: #fff5d3;  --cost-ink: #7a5600;
 
-  /* ---- motion. One curve family, three speeds. Named so a reviewer can tell
-     whether a value was chosen or inherited from a snippet. */
-  --ease-out: cubic-bezier(0.32, 0.72, 0, 1);
+  --temporal: #ce82ff;   --temporal-lip: #9069cd;
+  --temporal-tint: #f3e4ff; --temporal-ink: #5d3f90;
+
+  --defect: #ff4b4b;     --defect-lip: #ea2b2b;
+  --defect-tint: #ffdfe0; --defect-ink: #b81c1c;
+
+  /* ---- data encodings. Ordered by luminance as well as by hue, so a chart
+     read in greyscale still ranks its series correctly. */
+  --data-1: #afafaf;
+  --data-2: #1cb0f6;
+  --data-3: #58cc02;
+  --data-4: #3c8000;
+  --data-grid: #efefef;
+
+  /* ---- state. Paired with a glyph or a word at every use site, never colour
+     alone. Both take their family's ink, because both label text. */
+  --ok: #37700a;
+  --ok-quiet: #d7ffb8;
+  --bad: #b81c1c;
+  --bad-quiet: #ffdfe0;
+
+  /* ---- depth. THE rule of this system: a raised surface sits on a solid
+     darker edge, never on a blur. Every one of these is `0 <lip> 0 <colour>`,
+     and pressing translates by exactly the lip so the element lands flush.
+     A soft shadow anywhere on this page is now a bug. */
+  --shadow-sm: 0 2px 0 var(--border);
+  --shadow-raised: 0 3px 0 var(--border);
+  --shadow-lifted: 0 4px 0 var(--border-strong);
+
+  /* ---- motion. Two curves: settle for anything a reader can reverse, pop for
+     the few things that should feel sprung. Speeds unchanged — they were
+     measured against the animation rules, and the language change does not
+     make a 130ms hover the wrong length. */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
-  --ease-soft: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  --ease-soft: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-pop: cubic-bezier(0.35, 1.8, 0.35, 0.83);
 
   --dur-hover: 130ms;
   --dur-enter: 220ms;
   --dur-exit: 160ms;      /* ~25% faster than enter, per the animations skill */
   --dur-move: 260ms;
+  --dur-press: 100ms;
 
-  --measure: 33rem;
+  /* Nunito runs wider than Geist at the same size, so the measure grows with it
+     to keep the line at roughly 66 characters rather than letting it drop. */
+  --measure: 34rem;
   --gutter: clamp(1.25rem, 4vw, 3.5rem);
-  --rule: 1px solid var(--border);
-  --radius: 8px;
-  --radius-sm: 5px;
+  --rule: 2px solid var(--border);
+  --lip: 2px;
+  --radius: 16px;
+  --radius-sm: 12px;
+  --radius-pill: 999px;
 }
 
 /* ---------------------------------------------------------- machine canvas
@@ -104,41 +166,62 @@
 :root[data-audience="machine"] {
   color-scheme: dark;
 
-  --bg: #0f0f0e;
-  --bg-raised: #171716;
-  --bg-sunken: #0a0a09;
-  --bg-inset: #1e1e1c;
-  --surface: #171716;
+  /* Duolingo's dark theme, not an inversion of the light one: a desaturated
+     blue-black rather than a grey, which is what keeps the bright families
+     looking like fills instead of glowing. */
+  --bg: #131f24;
+  --bg-raised: #202f36;
+  --bg-sunken: #0b1518;
+  --bg-inset: #1a2b31;
+  --surface: #202f36;
 
-  --text: rgba(245, 244, 240, 0.93);
-  --text-secondary: rgba(245, 244, 240, 0.68);
-  --text-tertiary: rgba(245, 244, 240, 0.58);
-  --text-faint: rgba(245, 244, 240, 0.46);
+  --text: #f1f7fb;
+  --text-secondary: #c5d3da;
+  --text-tertiary: #a3b4bd;
+  --text-faint: #8fa3ad;
 
-  --border: rgba(245, 244, 240, 0.13);
-  --border-strong: rgba(245, 244, 240, 0.26);
-  --border-faint: rgba(245, 244, 240, 0.07);
+  --border: #37464f;
+  --border-strong: #52656d;
+  --border-faint: #263840;
 
-  --accent: #e8a33d;
-  --accent-hover: #f0b45c;
-  --accent-quiet: rgba(232, 163, 61, 0.13);
-  --accent-line: rgba(232, 163, 61, 0.32);
-  --accent-text: #f2bb6b;
+  /* On #131f24 the undarkened Feather Green measures 8.05:1, so the ink and the
+     fill are the same colour here — the split only exists because white is a
+     hard background for this family, and this one is not white. */
+  --accent: #58cc02;
+  --accent-strong: #58cc02;
+  --accent-hover: #6ee208;
+  --accent-lip: #37700a;
+  --accent-quiet: rgba(88, 204, 2, 0.16);
+  --accent-line: #58a700;
+  --accent-text: #79e22f;
 
-  --data-1: #6b675f;
-  --data-2: #949087;
-  --data-3: #c4c0b6;
-  --data-4: #e8a33d;
-  --data-grid: rgba(245, 244, 240, 0.09);
+  --substrate: #1cb0f6;  --substrate-lip: #0a6187;
+  --substrate-tint: rgba(28, 176, 246, 0.16); --substrate-ink: #6fd0ff;
 
-  --ok: #a3d16b;
-  --ok-quiet: rgba(163, 209, 107, 0.12);
-  --bad: #f08d9e;
-  --bad-quiet: rgba(240, 141, 158, 0.12);
+  --cost: #ffc800;       --cost-lip: #7a5600;
+  --cost-tint: rgba(255, 200, 0, 0.16);  --cost-ink: #ffd84d;
 
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
-  --shadow-raised: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 14px rgba(0, 0, 0, 0.34);
-  --shadow-lifted: 0 1px 2px rgba(0, 0, 0, 0.45), 0 10px 30px rgba(0, 0, 0, 0.45);
+  --temporal: #ce82ff;   --temporal-lip: #5d3f90;
+  --temporal-tint: rgba(206, 130, 255, 0.16); --temporal-ink: #dda8ff;
+
+  --defect: #ff4b4b;     --defect-lip: #b81c1c;
+  --defect-tint: rgba(255, 75, 75, 0.16);  --defect-ink: #ff8f8f;
+
+  --data-1: #52656d;
+  --data-2: #1cb0f6;
+  --data-3: #58cc02;
+  --data-4: #ffc800;
+  --data-grid: #263840;
+
+  --ok: #79e22f;
+  --ok-quiet: rgba(88, 204, 2, 0.16);
+  --bad: #ff8f8f;
+  --bad-quiet: rgba(255, 75, 75, 0.16);
+
+  /* The lip survives the theme change; only the edge colour moves. */
+  --shadow-sm: 0 2px 0 var(--border);
+  --shadow-raised: 0 3px 0 var(--border);
+  --shadow-lifted: 0 4px 0 var(--border-strong);
 }
 
 /* ---- the machine register
@@ -274,8 +357,12 @@ body {
   background: var(--bg);
   color: var(--text);
   font-family: var(--font-sans);
-  font-size: 16px;
-  line-height: 1.6;
+  /* Duolingo sets body copy larger and heavier than a typical editorial stack —
+     the rounded shapes need the weight to hold their counters. 17/1.68 at 500 is
+     that, tuned down enough to survive forty pages of it. */
+  font-size: 17px;
+  line-height: 1.68;
+  font-weight: 500;
   font-feature-settings: "kern", "liga", "calt";
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -284,9 +371,9 @@ body {
 ::selection { background: var(--accent-quiet); color: var(--text); }
 
 :focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 3px solid var(--accent-line);
   outline-offset: 2px;
-  border-radius: 3px;
+  border-radius: 8px;
 }
 
 /* Every animation gets a reduced-motion path. No exceptions, including fades. */
@@ -334,6 +421,10 @@ main { overflow-x: clip; }
 .masthead > .label { margin-bottom: 0.75rem; }
 .masthead > .title { margin: 0 0 0.75rem; }
 .masthead > .lede { margin: 0; max-width: 34rem; }
+/* The metadata block is set in mono at 12px and had no measure of its own, so it
+   ran the full 877px of the article while the lede above it was held to 544 —
+   the smallest type on the page setting the longest line on it. */
+.masthead > .meta { max-width: 44rem; }
 
 .section {
   padding-block: clamp(2.75rem, 6vw, 4.5rem);
@@ -343,6 +434,20 @@ main { overflow-x: clip; }
 .section:first-of-type { border-top: none; }
 
 .prose { max-width: var(--measure); }
+
+/* Paragraph separation.
+   `.body p` carried this and `.prose p` did not, and the paper's own prose is
+   `.prose` — so with Tailwind's preflight zeroing `p` margins, every section ran
+   as one unbroken column of text with no paragraph breaks at all. It reads as a
+   wall, and the argument's structure is invisible.
+
+   Space rather than an indent, because this is the screen edition. The printed
+   one takes the opposite choice — `p + p { text-indent }` with no space, which
+   is the right convention on paper and the wrong one here — and it overrides
+   these two rules from the print block further down. */
+.prose p { margin: 0 0 1.0625rem; }
+.prose ul, .prose ol { margin: 0 0 1.0625rem; }
+.prose > :last-child { margin-bottom: 0; }
 
 /* ------------------------------------------------------------ reading rail
    A narrow sticky aside beside a wide article. Below 1080px the rail has no
@@ -393,9 +498,10 @@ main { overflow-x: clip; }
   margin-left: -1px;
   font-size: 0.8125rem;
   line-height: 1.35;
+  font-weight: 700;
   color: var(--text-tertiary);
   text-decoration: none;
-  border-left: 2px solid var(--border-faint);
+  border-left: 3px solid var(--border-faint);
   transition:
     color var(--dur-hover) var(--ease-soft),
     border-color var(--dur-hover) var(--ease-soft);
@@ -406,8 +512,8 @@ main { overflow-x: clip; }
 }
 
 .rail-link[data-current="true"] {
-  color: var(--text);
-  font-weight: 540;
+  color: var(--accent-text);
+  font-weight: 800;
   border-left-color: var(--accent);
 }
 
@@ -417,8 +523,13 @@ main { overflow-x: clip; }
 .rail-preview { display: block; }
 
 /* The menu button only exists on the narrow layout. On the wide one the
-   contents are already open beside the reader. */
-.rail-toggle { display: none; }
+   contents are already open beside the reader.
+
+   Scoped to the rail rather than left bare: `.rail-toggle` and `.btn` have the
+   same specificity, `.btn` is declared later, and `.btn` sets a display — so a
+   bare rule here loses and the button shows on the desktop layout beside the
+   open list it would toggle. Two "Contents" affordances, one of them useless. */
+.reading-rail > .rail-toggle { display: none; }
 
 @media (max-width: 1080px) {
   .with-rail { grid-template-columns: minmax(0, 1fr); }
@@ -439,7 +550,9 @@ main { overflow-x: clip; }
     background: var(--bg);
   }
 
-  .rail-toggle { display: inline-flex; width: 100%; justify-content: flex-start; }
+  .reading-rail > .rail-toggle {
+    display: inline-flex; width: 100%; justify-content: flex-start;
+  }
 
   /* The contents collapse behind the button.
 
@@ -511,33 +624,35 @@ main { overflow-x: clip; }
 
 .display {
   font-size: clamp(2.5rem, 6.5vw, 4.25rem);
-  line-height: 1.02;
-  letter-spacing: -0.035em;
-  font-weight: 560;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  /* Nunito's display weight. 900 is not a shout here — the rounded terminals
+     eat optical weight, and 700 at this size reads as the body face enlarged. */
+  font-weight: 900;
   margin: 0;
   text-wrap: balance;
 }
 
 .title {
   font-size: clamp(1.75rem, 3.5vw, 2.5rem);
-  line-height: 1.12;
-  letter-spacing: -0.025em;
-  font-weight: 540;
+  line-height: 1.14;
+  letter-spacing: -0.02em;
+  font-weight: 900;
   margin: 0;
   text-wrap: balance;
 }
 
 .heading-24 {
-  font-size: 1.5rem; line-height: 1.24; letter-spacing: -0.019em;
-  font-weight: 540; margin: 0 0 0.875rem; text-wrap: balance;
+  font-size: 1.625rem; line-height: 1.24; letter-spacing: -0.018em;
+  font-weight: 800; margin: 0 0 0.875rem; text-wrap: balance;
 }
 .heading-20 {
-  font-size: 1.1875rem; line-height: 1.32; letter-spacing: -0.014em;
-  font-weight: 540; margin: 0 0 0.625rem; text-wrap: balance;
+  font-size: 1.25rem; line-height: 1.34; letter-spacing: -0.012em;
+  font-weight: 800; margin: 0 0 0.625rem; text-wrap: balance;
 }
 .heading-16 {
-  font-size: 1rem; line-height: 1.42; letter-spacing: -0.008em;
-  font-weight: 560; margin: 0 0 0.5rem;
+  font-size: 1.0625rem; line-height: 1.44; letter-spacing: -0.006em;
+  font-weight: 800; margin: 0 0 0.5rem;
 }
 
 .lede {
@@ -551,8 +666,19 @@ main { overflow-x: clip; }
 .body p:last-child { margin-bottom: 0; }
 
 .label {
-  font-size: 0.8125rem; line-height: 1.4; font-weight: 500;
+  font-size: 0.8125rem; line-height: 1.4; font-weight: 700;
   color: var(--text-secondary);
+}
+
+/* The eyebrow above a title. Uppercase belongs to labels that name a thing —
+   never to `.label`, which also carries chart axes and half-sentences that would
+   turn into shouting. */
+.kicker {
+  display: inline-block;
+  font-size: 0.75rem; font-weight: 800;
+  letter-spacing: 0.04em; text-transform: uppercase;
+  color: var(--accent-text);
+  margin: 0 0 0.75rem;
 }
 .caption {
   font-size: 0.8125rem; line-height: 1.5; color: var(--text-tertiary);
@@ -562,6 +688,7 @@ main { overflow-x: clip; }
   font-family: var(--font-mono); font-size: 0.75rem; line-height: 1.4;
   color: var(--text-tertiary); font-variant-numeric: tabular-nums;
 }
+strong, b { font-weight: 800; }
 
 .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 .num { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
@@ -579,21 +706,22 @@ a { color: inherit; text-underline-offset: 0.18em; text-decoration-thickness: 1p
   grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
   border-block: var(--rule);
 }
-.stat { padding: 1.125rem 1.25rem 1.25rem; border-left: 1px solid var(--border-faint); }
+.stat { padding: 1.125rem 1.25rem 1.25rem; border-left: 2px solid var(--border-faint); }
 .stat:first-child { border-left: none; }
 
 .stat-value {
-  font-size: clamp(1.5rem, 2.6vw, 2rem); line-height: 1.05;
-  letter-spacing: -0.028em; font-weight: 540;
+  font-size: clamp(1.75rem, 3vw, 2.5rem); line-height: 1.05;
+  letter-spacing: -0.02em; font-weight: 900;
   font-variant-numeric: tabular-nums; display: block;
 }
 .stat-unit {
   font-size: 0.6875em; color: var(--text-tertiary);
-  letter-spacing: -0.01em; margin-left: 0.15em; font-weight: 460;
+  letter-spacing: 0; margin-left: 0.15em; font-weight: 700;
 }
 .stat-label {
-  font-size: 0.75rem; color: var(--text-tertiary);
-  margin-top: 0.4375rem; display: block; line-height: 1.35;
+  font-size: 0.6875rem; color: var(--text-tertiary);
+  font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase;
+  margin-top: 0.4375rem; display: block; line-height: 1.4;
 }
 
 .table-wrap {
@@ -614,14 +742,28 @@ th, td {
   padding: 0.5625rem 0.875rem; text-align: left;
   vertical-align: baseline; white-space: nowrap;
 }
-th {
-  font-weight: 540; color: var(--text-secondary);
-  border-bottom: 1px solid var(--border-strong);
+th { font-weight: 800; color: var(--text-secondary); }
+
+/* Column heads name a thing, so they take the label treatment, the sticky
+   position and the rule under the header band. Row heads inside the body are
+   content: they are the first cell of their row and are ruled like one.
+
+   Keeping the strong rule on a bare `th` drew it under every row header too, so
+   column one carried a 2px #afafaf underline while its own row's cells carried
+   the faint one — a heavy line stopping a third of the way across each row. */
+thead th {
+  font-size: 0.6875rem; letter-spacing: 0.04em; text-transform: uppercase;
+  color: var(--text-tertiary);
+  border-bottom: 2px solid var(--border-strong);
   position: sticky; top: 0; background: var(--bg);
 }
-tbody tr { border-bottom: 1px solid var(--border-faint); }
+tbody tr { border-bottom: 2px solid var(--border-faint); }
 tbody tr:last-child { border-bottom: none; }
-tfoot td { border-top: 1px solid var(--border-strong); font-weight: 540; }
+@media (hover: hover) and (pointer: fine) {
+  tbody tr { transition: background-color var(--dur-hover) var(--ease-soft); }
+  tbody tr:hover { background: var(--bg-sunken); }
+}
+tfoot td { border-top: 2px solid var(--border-strong); font-weight: 800; }
 th.n, td.n { text-align: right; }
 td.wrap, th.wrap { white-space: normal; }
 
@@ -634,8 +776,11 @@ figure { margin: 0; }
 }
 .figure-head {
   display: flex; align-items: baseline; justify-content: space-between;
-  gap: 1rem; padding: 0.75rem 1rem; border-bottom: var(--rule);
+  gap: 1rem; padding: 0.8125rem 1.125rem; border-bottom: var(--rule);
   background: var(--bg-sunken);
+}
+.figure-head > :first-child {
+  font-weight: 800; letter-spacing: -0.006em;
 }
 .figure-body { padding: 1.25rem 1rem; }
 
@@ -651,21 +796,22 @@ figure { margin: 0; }
 /* Two- or three-way view switch inside a figure head. Small, quiet, and it
    never moves the figure body's height when it changes. */
 .seg {
-  display: inline-flex; gap: 1px; padding: 2px;
-  background: var(--bg-inset); border: 1px solid var(--border-faint);
-  border-radius: var(--radius-sm);
+  display: inline-flex; gap: 2px; padding: 3px;
+  background: var(--bg-inset); border: 2px solid var(--border-faint);
+  border-radius: var(--radius-pill);
 }
 .seg button {
-  font: inherit; font-size: 0.6875rem; font-family: var(--font-mono);
-  letter-spacing: 0.02em; color: var(--text-tertiary);
-  background: transparent; border: none; border-radius: 3px;
-  padding: 0.25rem 0.5rem; min-height: 26px; cursor: pointer;
+  font: inherit; font-size: 0.6875rem; font-weight: 800;
+  letter-spacing: 0.04em; text-transform: uppercase;
+  color: var(--text-tertiary);
+  background: transparent; border: none; border-radius: var(--radius-pill);
+  padding: 0.25rem 0.6875rem; min-height: 28px; cursor: pointer;
   transition: color var(--dur-hover) var(--ease-soft),
               background-color var(--dur-hover) var(--ease-soft);
 }
 .seg button:hover { color: var(--text); }
 .seg button.seg-on {
-  background: var(--bg-raised); color: var(--text);
+  background: var(--bg-raised); color: var(--accent-text);
   box-shadow: var(--shadow-sm);
 }
 
@@ -684,23 +830,27 @@ pre {
 }
 .code-head {
   display: flex; align-items: center; justify-content: space-between;
-  gap: 1rem; padding: 0.5rem 0.875rem; border-bottom: var(--rule);
-  font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-tertiary);
+  gap: 1rem; padding: 0.5625rem 1rem; border-bottom: var(--rule);
+  font-family: var(--font-mono); font-size: 0.6875rem;
+  font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
+  color: var(--text-tertiary);
 }
 .code-block pre { padding: 0.9375rem 1rem; }
 
 code:not(pre code) {
-  font-size: 0.875em; padding: 0.1em 0.34em; border-radius: 3px;
+  font-size: 0.8438em; padding: 0.12em 0.4em; border-radius: 6px;
   background: var(--bg-sunken); border: 1px solid var(--border-faint);
   /* Never nowrap: a long inline command would push the page wider than a phone. */
   white-space: pre-wrap; overflow-wrap: anywhere;
 }
 
-.tok-kw   { color: #6b21a8; font-weight: 540; }
-.tok-fn   { color: #9a3412; }
-.tok-type { color: #1e4620; }
-.tok-str  { color: #0e5a6e; }
-.tok-num  { color: #7c2d12; }
+/* Syntax colours come from the same five families as everything else, using the
+   `-ink` member of each — the only member allowed to carry text. */
+.tok-kw   { color: var(--temporal-ink); font-weight: 700; }
+.tok-fn   { color: var(--substrate-ink); }
+.tok-type { color: var(--accent-text); }
+.tok-str  { color: var(--cost-ink); }
+.tok-num  { color: var(--defect-ink); }
 .tok-com  { color: var(--text-faint); font-style: italic; }
 .tok-punc { color: var(--text-tertiary); }
 
@@ -708,49 +858,62 @@ code:not(pre code) {
 
 .rule { border: none; border-top: var(--rule); margin: 0; }
 
+/* A chip, not an outlined box. Duolingo's tints carry their own edge by being
+   a full step lighter than the fill they belong to, so the border comes off and
+   the shape goes fully round. */
 .pill {
   display: inline-flex; align-items: center; gap: 0.375rem;
-  font-size: 0.75rem; font-family: var(--font-mono);
-  padding: 0.1875rem 0.5rem; border: 1px solid var(--border);
-  border-radius: 4px; color: var(--text-secondary);
-  white-space: nowrap; background: var(--bg-raised);
+  font-size: 0.75rem; font-family: var(--font-mono); font-weight: 500;
+  padding: 0.25rem 0.625rem; border: 0;
+  border-radius: var(--radius-pill); color: var(--text-secondary);
+  white-space: nowrap; background: var(--bg-inset);
 }
-.pill-accent {
-  border-color: var(--accent-line); background: var(--accent-quiet);
-  color: var(--accent-text);
-}
-.pill-ok  { border-color: rgba(63,98,18,0.28);  background: var(--ok-quiet);  color: var(--ok); }
-.pill-bad { border-color: rgba(159,18,57,0.28); background: var(--bad-quiet); color: var(--bad); }
+.pill-accent { background: var(--accent-quiet); color: var(--accent-text); }
+.pill-ok  { background: var(--ok-quiet);  color: var(--ok); }
+.pill-bad { background: var(--bad-quiet); color: var(--bad); }
 
 /* Buttons. Press feedback is a transition so releasing mid-press returns
    smoothly; scale never goes below 0.96. */
+/* The button is where this language is most itself. It sits on a solid 2px lip,
+   and pressing it translates down by exactly that lip and drops the shadow, so
+   the button lands flush against the page rather than shrinking away from the
+   finger. Scale is gone: a scale-down moves every edge at once, which reads as
+   the control retreating. A press should read as the control being pushed. */
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 0.4375rem;
-  min-height: 40px; padding: 0.5rem 0.875rem;
-  font: inherit; font-size: 0.875rem; font-weight: 500;
+  min-height: 44px; padding: 0.5625rem 1.125rem;
+  font: inherit; font-size: 0.8125rem; font-weight: 800;
+  letter-spacing: 0.04em; text-transform: uppercase;
   color: var(--text); background: var(--bg-raised);
-  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  border: 2px solid var(--border); border-radius: var(--radius-sm);
   cursor: pointer; white-space: nowrap;
   box-shadow: var(--shadow-sm);
   transition:
     background-color var(--dur-hover) var(--ease-soft),
     border-color var(--dur-hover) var(--ease-soft),
-    box-shadow var(--dur-hover) var(--ease-soft),
-    scale var(--dur-hover) var(--ease-out);
+    box-shadow var(--dur-press) var(--ease-soft),
+    transform var(--dur-press) var(--ease-soft);
 }
 @media (hover: hover) and (pointer: fine) {
   .btn:hover { background: var(--bg-sunken); border-color: var(--border-strong); }
 }
-.btn:active { scale: 0.97; }
+.btn:active {
+  transform: translateY(var(--lip));
+  box-shadow: none;
+}
 .btn[aria-pressed="true"], .btn[data-selected="true"] {
-  background: var(--text); color: var(--bg-raised); border-color: var(--text);
+  background: var(--accent-quiet); color: var(--accent-text);
+  border-color: var(--accent-line);
+  box-shadow: 0 2px 0 var(--accent-line);
 }
 .btn-accent {
-  background: var(--accent); color: #fff; border-color: var(--accent);
+  background: var(--accent-strong); color: #fff; border-color: var(--accent-strong);
+  box-shadow: 0 2px 0 var(--accent-lip);
 }
 @media (hover: hover) and (pointer: fine) {
   .btn-accent:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
 }
+.btn-accent:active { box-shadow: none; }
 
 /* Segmented control — the human/machine switch. The thumb is a single moving
    element rather than two crossfading backgrounds, so the motion reads as one
@@ -758,12 +921,12 @@ code:not(pre code) {
 .segmented {
   position: relative; display: inline-flex; align-items: center;
   padding: 3px; gap: 2px;
-  background: var(--bg-inset); border: 1px solid var(--border);
-  border-radius: 999px;
+  background: var(--bg-inset); border: 2px solid var(--border);
+  border-radius: var(--radius-pill);
 }
 .segmented-thumb {
   position: absolute; top: 3px; bottom: 3px; left: 3px;
-  border-radius: 999px; background: var(--bg-raised);
+  border-radius: var(--radius-pill); background: var(--bg-raised);
   box-shadow: var(--shadow-sm);
   transition: transform var(--dur-move) var(--ease-out), width var(--dur-move) var(--ease-out);
   pointer-events: none;
@@ -771,15 +934,14 @@ code:not(pre code) {
 .segmented button {
   position: relative; z-index: 1;
   display: inline-flex; align-items: center; gap: 0.4375rem;
-  min-height: 34px; padding: 0 0.875rem;
-  font: inherit; font-size: 0.75rem; font-weight: 560;
+  min-height: 38px; padding: 0 1rem;
+  font: inherit; font-size: 0.75rem; font-weight: 800;
   letter-spacing: 0.04em; text-transform: uppercase;
-  font-family: var(--font-mono);
   color: var(--text-tertiary); background: none; border: 0;
-  border-radius: 999px; cursor: pointer; white-space: nowrap;
+  border-radius: var(--radius-pill); cursor: pointer; white-space: nowrap;
   transition: color var(--dur-hover) var(--ease-soft);
 }
-.segmented button[aria-pressed="true"] { color: var(--text); }
+.segmented button[aria-pressed="true"] { color: var(--accent-text); }
 
 /* ------------------------------------------------------------ floating audio
    The narration player follows the reader instead of living at the top of the
@@ -2007,4 +2169,74 @@ input[type="range"] {
      margin it would otherwise carry as a standalone figure. */
   .plate > .figure,
   .plate > div > .figure { margin-top: 0; }
+}
+
+/* ==================================================== print: hold the line
+   Appended last on purpose. Everything above it belongs to the screen edition;
+   this block is the boundary the printed edition is defended behind. See the
+   note at the head of the file: two editions, one source, and the PDF does not
+   inherit the screen's design language. */
+
+@media print {
+  :root {
+    /* The printed edition keeps the grotesque it was typeset with. Nunito is a
+       screen face for a screen document; setting a rounded display face in a
+       review paper's running heads would undo the whole typesetting pass. */
+    --font-sans: var(--font-geist-sans), "Helvetica Neue", Arial, sans-serif;
+
+    /* No rounding, no lip, no depth. Paper has none of those. */
+    --radius: 0; --radius-sm: 0; --radius-pill: 0;
+    --lip: 0px;
+    --rule: 1px solid var(--border);
+    --shadow-sm: none; --shadow-raised: none; --shadow-lifted: none;
+
+    /* The five families collapse to the greyscale ramp the paper was set in.
+       Each keeps its position in the luminance order so a figure that encoded
+       series by hue still ranks them correctly in black and white. */
+    --accent-strong: #000; --accent-lip: #000;
+    --substrate: #888; --substrate-lip: #666; --substrate-tint: #f2f2f2; --substrate-ink: #000;
+    --cost: #bbb;      --cost-lip: #999;      --cost-tint: #f7f7f7;      --cost-ink: #000;
+    --temporal: #999;  --temporal-lip: #777;  --temporal-tint: #f4f4f4;  --temporal-ink: #000;
+    --defect: #555;    --defect-lip: #333;    --defect-tint: #ededed;    --defect-ink: #000;
+  }
+
+  /* Nunito's weight scale does not exist in Source Serif, which ships 400/600/
+     700. A 900 request against it is synthesised — the renderer smears the
+     outline sideways — so every weight the revamp raised is mapped back to a
+     weight the print face actually has. */
+  body { font-weight: 400; }
+  strong, b { font-weight: 700; }
+  .display, .title,
+  .heading-24, .heading-20, .heading-16 { font-weight: 700; }
+  .label { font-weight: 600; }
+
+  /* Uppercase-with-tracking is a label convention for a screen. In a paper the
+     same words are set as small caps or as ordinary text, never as a shout. */
+  thead th, .stat-label, .code-head, .kicker, .seg button, .btn {
+    text-transform: none;
+    letter-spacing: 0.01em;
+  }
+  .kicker { color: #333; font-weight: 600; }
+
+  /* These four size themselves in rem, which is anchored to the root and so
+     ignores the 6.5pt the surrounding table or block was set to. Left alone, a
+     column head prints larger than its own table. */
+  thead th { font-size: inherit; font-weight: 600; }
+  .stat-label { font-size: 0.9em; }
+  .code-head { font-size: 0.85em; }
+
+  /* Row rules are drawn on the cells, booktabs-style. A second rule on the row
+     doubles them at every boundary. */
+  tbody tr { border-bottom: 0; }
+  tfoot td { border-top-width: 0.9pt; font-weight: 600; }
+
+  /* The chip loses its fill along with its border — the existing print rule
+     already flattens `.pill` to inline text, and a tint behind it would put a
+     grey rectangle in the middle of a sentence. */
+  .pill, .pill-accent, .pill-ok, .pill-bad {
+    background: none !important;
+    color: inherit !important;
+  }
+
+  tbody tr:hover { background: none; }
 }

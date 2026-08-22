@@ -229,6 +229,10 @@ const AUDIT = `(() => {
 const BASE = process.argv[2] ?? 'http://127.0.0.1:3200'
 const TARGETS = [
   { name: 'paper', url: BASE, widths: [1280, 768, 375] },
+  /* The machine canvas is a second palette painted on the same markup, and until
+     this entry existed it was never measured — a whole colour scheme could fail
+     AA and the audit would still report the page clean. */
+  { name: 'paper-machine', url: BASE, widths: [1280], audience: 'machine' },
 ]
 if (process.argv[3]) TARGETS.push({ name: 'deck', url: process.argv[3], widths: [1280, 375] })
 
@@ -262,6 +266,9 @@ for (const t of TARGETS) {
     })
     await page.setViewport({ width: w, height: Math.round(w * 0.72), deviceScaleFactor: 2 })
     await page.goto(t.url, { waitUntil: 'networkidle0', timeout: 90_000 })
+    if (t.audience) {
+      await page.evaluate((a) => document.documentElement.setAttribute('data-audience', a), t.audience)
+    }
     await page.evaluate(() => document.fonts.ready)
     await sleep(700)
 

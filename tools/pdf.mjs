@@ -54,7 +54,7 @@ function findBrowser() {
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const WEB = join(ROOT, 'web')
 const OUT_DIR = join(ROOT, 'paper')
-const OUT = join(OUT_DIR, 'agent-memory-as-a-database-problem.pdf')
+const OUT = join(OUT_DIR, 'persistent-memory-architecture-for-agents.pdf')
 const PORT = 3123
 const BASE = `http://127.0.0.1:${PORT}`
 
@@ -167,7 +167,7 @@ try {
         <div style="border-bottom:0.5px solid #c8c8c8;padding-bottom:3px;
                     font-size:7pt;letter-spacing:0.08em;text-transform:uppercase;
                     color:#767676;display:flex;justify-content:space-between;">
-          <span>Agent memory as a database problem</span>
+          <span>Persistent memory architecture for agents</span>
           <span>Khemani &middot; Ahuja &middot; Bassi &middot; Agrawal</span>
         </div>
       </div>`,

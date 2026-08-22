@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { GeistSans } from 'geist/font/sans'
 import { GeistMono } from 'geist/font/mono'
-import { Source_Serif_4 } from 'next/font/google'
+import { Source_Serif_4, Nunito } from 'next/font/google'
 import './globals.css'
 
 /* The text face for print.
@@ -24,8 +24,26 @@ const serif = Source_Serif_4({
   variable: '--font-serif',
 })
 
+/* The text face for the screen.
+ *
+ * Duolingo's own faces — Feather Bold and duolingo-sans — are not licensable.
+ * Nunito is the substitute Duolingo names on its identity page, which makes it
+ * the only legally clean route to this feel rather than an approximation of it.
+ * It is also the reason the whole type scale moved up in weight: Nunito's
+ * rounded terminals absorb optical weight, so 500 is its regular and 800 is what
+ * reads as bold. 900 exists for display sizes only.
+ *
+ * Geist Sans stays loaded — the machine canvas still uses it for the record
+ * views, where a rounded face would be dishonest about what it is showing. */
+const nunito = Nunito({
+  subsets: ['latin'],
+  display: 'swap',
+  weight: ['400', '500', '600', '700', '800', '900'],
+  variable: '--font-nunito',
+})
+
 export const metadata: Metadata = {
-  title: 'Agent memory as a database problem — a review of Notion’s Lore',
+  title: 'Persistent memory architecture for agents — a review of Notion’s Lore',
   description:
     'A review of Notion’s Lore, the open-source agent memory system backed by five Notion databases, '
     + 'analysed as a database design and reimplemented on SQLite and PostgreSQL to measure what the '
@@ -45,7 +63,7 @@ export const metadata: Metadata = {
     'PostgreSQL', 'SQLite', 'knowledge graph',
   ],
   openGraph: {
-    title: 'Agent memory as a database problem',
+    title: 'Persistent memory architecture for agents',
     description:
       'Notion’s Lore answers a realistic recall workload correctly — and needs 1 447 HTTP requests '
       + 'per question to do it, where one SQL statement suffices. A review, with measurements.',
@@ -61,7 +79,7 @@ export const metadata: Metadata = {
    property. The value is `--bg` from globals.css; changing one without the other
    is the only way the two can drift. */
 export const viewport = {
-  themeColor: '#fcfcfb',
+  themeColor: '#ffffff',
   colorScheme: 'light' as const,
 }
 
@@ -69,7 +87,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html
       lang="en"
-      className={`${GeistSans.variable} ${GeistMono.variable} ${serif.variable}`}
+      className={`${nunito.variable} ${GeistSans.variable} ${GeistMono.variable} ${serif.variable}`}
       style={{ colorScheme: 'light' }}
     >
       <head>

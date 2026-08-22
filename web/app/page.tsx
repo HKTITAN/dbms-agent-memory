@@ -63,14 +63,14 @@ const TOC = [
 
 const DOWNLOADS = [
   {
-    href: '/agent-memory-as-a-database-problem.pdf',
+    href: '/persistent-memory-architecture-for-agents.pdf',
     label: 'PDF',
     meta: 'A4',
     preview: '/preview-pdf.png',
     previewAlt: 'First page of the typeset PDF',
   },
   {
-    href: '/agent-memory-as-a-database-problem.epub',
+    href: '/persistent-memory-architecture-for-agents.epub',
     label: 'ePub',
     meta: 'reflow',
     preview: '/preview-epub.png',
@@ -83,9 +83,12 @@ const DOWNLOADS = [
    these two have nothing to preview — but a reader who wants the numbers should
    not have to clone the repository to get them. */
 const ARTIFACTS = [
-  { href: '/agent-memory-as-a-database-problem.pdf', name: 'The paper', meta: 'PDF · A4 · typeset from this page' },
-  { href: '/agent-memory-as-a-database-problem.epub', name: 'The paper', meta: 'ePub · reflows on an e-reader' },
-  { href: '/agent-memory-as-a-database-problem-slides.pdf', name: 'The talk', meta: 'PDF · 16:9 · one slide per page' },
+  /* Two of these are the same document, so they cannot both be called "The
+     paper" — a list where two rows share a name reads as a duplicate, and the
+     distinction between them is precisely the format. */
+  { href: '/persistent-memory-architecture-for-agents.pdf', name: 'The paper, typeset', meta: 'PDF · A4 · 43 pages' },
+  { href: '/persistent-memory-architecture-for-agents.epub', name: 'The paper, reflowable', meta: 'ePub · for an e-reader' },
+  { href: '/persistent-memory-architecture-for-agents-slides.pdf', name: 'The talk', meta: 'PDF · 16:9 · one slide per page' },
   /* Explicit filename rather than the directory: a static file under public/ is
      served at its path, and whether `/slides/` resolves to its index is a
      property of the host, not of the project. */
@@ -148,7 +151,7 @@ export default function Paper() {
             below is for and what made the PDF read as a website export. */}
         <section className="titlepage">
           <p className="tp-kicker">Review paper · Database Management Systems</p>
-          <h1>Agent memory as a database problem</h1>
+          <h1>Persistent memory architecture for agents</h1>
           <p className="tp-sub">
             A review of Notion&rsquo;s Lore, and what happens when its schema is given a database
             to run on.
@@ -221,8 +224,8 @@ export default function Paper() {
 
         {/* ------------------------------------------------------- masthead */}
         <header className="masthead no-print">
-          <p className="label">Review paper · Database Management Systems</p>
-          <h1 className="title">Agent memory as a database problem</h1>
+          <p className="kicker">Review paper · Database Management Systems</p>
+          <h1 className="title">Persistent memory architecture for agents</h1>
           <p className="lede">
             A review of Notion&rsquo;s <span className="mono">Lore</span>, and what happens when its
             schema is given a database to run on.
@@ -242,7 +245,7 @@ export default function Paper() {
 
           <div className="downloads">
             <div>
-              <h2 className="label" id="artifacts-heading">Everything, downloadable</h2>
+              <h2 className="kicker" id="artifacts-heading">Everything, downloadable</h2>
               <ul className="download-list" aria-labelledby="artifacts-heading">
                 {ARTIFACTS.map((a) => (
                   <li key={a.href}>
