@@ -21,3 +21,10 @@ out/
 # sentence with a number in it, and every slide reads from, so it is the one
 # derived artifact that belongs in the repository.
 data/vault.json
+
+__pycache__/
+*.db
+*.db-journal
+
+# Chrome profiles and the HTML used to print the TA-3 report.
+ta3-implementation/build/

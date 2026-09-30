@@ -1,0 +1,3 @@
+# The memory store and demo use only the Python standard library.
+# Pygments is used to render syntax-highlighted code figures for the report.
+pygments>=2.18

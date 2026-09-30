@@ -1,0 +1,7 @@
+python=3.12.3
+sqlite=3.45.1
+os=Ubuntu 24.04.4 LTS
+kernel=6.12.94+
+chrome=148.0.7778.96
+pygments=2.21.0
+machine=x86_64

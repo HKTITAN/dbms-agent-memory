@@ -1,0 +1,19 @@
+{
+  "note": "One group report. Append an object to members to add a student; the cover, declaration, and footer all read this list.",
+  "university": "SGT University, Gurugram",
+  "university_full": "Shree Guru Gobind Singh Tricentenary University",
+  "department": "Department of Computer Science and Engineering",
+  "programme": "B.Tech CSE (Artificial Intelligence and Machine Learning), Section C",
+  "subject": "Database Management Systems",
+  "assignment": "TA-3",
+  "faculty": "Dr. Poonam Sangwan",
+  "title": "Persistent Memory Architecture for AI Agents",
+  "subtitle": "Implementation of a relational memory store",
+  "date": "30 September 2026",
+  "members": [
+    {"name": "Harshit Khemani", "roll": "241302081"},
+    {"name": "Kush Ahuja", "roll": "241302122"},
+    {"name": "Kushagra Agrawal", "roll": "241302109"},
+    {"name": "Madhav Bassi", "roll": "241302100"}
+  ]
+}

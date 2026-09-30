@@ -1,0 +1,46 @@
+CREATE TABLE fact (
+  fact_id            INTEGER PRIMARY KEY,
+  subject_entity_id  INTEGER NOT NULL REFERENCES entity(entity_id),
+  predicate          TEXT NOT NULL
+                     CHECK (predicate IN (
+                       'is_a', 'uses', 'owned_by', 'created_by', 'depends_on'
+                     )),
+  object_text        TEXT,
+  object_entity_id   INTEGER REFERENCES entity(entity_id),
+  confidence         REAL NOT NULL CHECK (confidence > 0 AND confidence <= 1),
+  stance             TEXT NOT NULL
+                     CHECK (stance IN ('certain', 'likely', 'speculative')),
+  valid_from         TEXT NOT NULL,
+  valid_until        TEXT,
+  status             TEXT NOT NULL DEFAULT 'active'
+                     CHECK (status IN ('active', 'superseded', 'forgotten')),
+  source_episode_id  INTEGER REFERENCES episode(episode_id),
+  superseded_by      INTEGER REFERENCES fact(fact_id),
+  statement          TEXT NOT NULL,
+  created_at         TEXT NOT NULL,
+  CHECK (object_text IS NOT NULL OR object_entity_id IS NOT NULL),
+  CHECK (valid_until IS NULL OR valid_from <= valid_until),
+  CHECK (
+    (status = 'active' AND valid_until IS NULL)
+    OR (status IN ('superseded', 'forgotten') AND valid_until IS NOT NULL)
+  )
+);
+CREATE UNIQUE INDEX ux_one_active_functional_fact
+  ON fact (subject_entity_id, predicate)
+  WHERE status = 'active'
+    AND predicate IN ('owned_by', 'is_a', 'created_by');
+CREATE INDEX ix_fact_source ON fact (source_episode_id);
+CREATE INDEX ix_fact_validity ON fact (valid_from, valid_until);
+CREATE INDEX ix_fact_object ON fact (object_entity_id);
+CREATE TRIGGER fact_ai AFTER INSERT ON fact BEGIN
+  INSERT INTO fact_fts (rowid, statement) VALUES (new.fact_id, new.statement);
+END;
+CREATE TRIGGER fact_ad AFTER DELETE ON fact BEGIN
+  INSERT INTO fact_fts (fact_fts, rowid, statement)
+  VALUES ('delete', old.fact_id, old.statement);
+END;
+CREATE TRIGGER fact_au AFTER UPDATE ON fact BEGIN
+  INSERT INTO fact_fts (fact_fts, rowid, statement)
+  VALUES ('delete', old.fact_id, old.statement);
+  INSERT INTO fact_fts (rowid, statement) VALUES (new.fact_id, new.statement);
+END;

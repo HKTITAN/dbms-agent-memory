@@ -1,0 +1,166 @@
+
+========================================================================
+1. Schema
+========================================================================
+database file: memory.db
+tables: agent, embedding, entity, entity_alias, episode, episode_fts,
+episode_fts_config, episode_fts_data, episode_fts_docsize, episode_fts_idx, fact,
+fact_fts, fact_fts_config, fact_fts_data, fact_fts_docsize, fact_fts_idx, keyword,
+session, summary
+partial unique index ux_one_active_functional_fact:
+CREATE UNIQUE INDEX ux_one_active_functional_fact ON fact (subject_entity_id, predicate)
+WHERE status = 'active' AND predicate IN ('owned_by', 'is_a', 'created_by')
+
+========================================================================
+2. Write a session
+========================================================================
+agent 1 Archivist, session 1
+episode 1  2026-09-30T09:05:00  We are building Campus Navigator, a student app for SGT
+University.
+episode 2  2026-09-30T09:10:00  Campus Navigator is owned by the DBMS project team.
+episode 3  2026-09-30T09:15:00  The app uses SQLite for persistent memory, because we
+need foreign keys and full-text search.
+episode 4  2026-09-30T09:20:00  Harshit Khemani created the memory schema.
+episode 5  2026-09-30T09:25:00  A teammate guessed the app uses MongoDB. That guess is
+speculative and wrong.
+episode 6  2026-09-30T09:40:00  Ownership moved. The AI Lab now owns Campus Navigator.
+alias 'the app' -> entity 1 Campus Navigator (project)
+
+========================================================================
+3. Assert semantic facts
+========================================================================
+fact  1  Campus Navigator owned_by DBMS project team  certain 0.90  from
+2026-09-30T09:10:00
+fact  2  Campus Navigator uses SQLite  certain 0.95  from 2026-09-30T09:15:00
+fact  3  Campus Navigator created_by Harshit Khemani  certain 0.90  from
+2026-09-30T09:20:00
+fact  4  Campus Navigator uses MongoDB  speculative 0.30  from 2026-09-30T09:25:00
+
+========================================================================
+4. Update and forget
+========================================================================
+API refused a second active owner (fact 1 is still current)
+  existing: Campus Navigator owned by DBMS project team
+supersede fact 1 -> fact 5 at 09:40
+forget fact 4 (speculative MongoDB use) at 09:42
+forget episode 5 (the wrong guess is kept in the table, hidden from retrieval)
+ownership history:
+  fact 1  DBMS project team  superseded  [2026-09-30T09:10:00 .. 2026-09-30T09:40:00]
+  fact 5  AI Lab  active  [2026-09-30T09:40:00 .. open]
+
+========================================================================
+5. The index refuses what the API already refused
+========================================================================
+IntegrityError: UNIQUE constraint failed: fact.subject_entity_id, fact.predicate
+
+========================================================================
+6. Retrieve
+========================================================================
+predicate lookup owned_by(Campus Navigator) = AI Lab  (fact 5, from 2026-09-30T09:40:00)
+
+query: full-text search sqlite
+  1. episode id=3  rrf=0.0492  lanes=fts+keyword+vector
+     user: The app uses SQLite for persistent memory, because we need foreign keys and
+     full-text search.
+  2. fact    id=2  rrf=0.0484  lanes=fts+keyword+vector
+     Campus Navigator uses SQLite
+
+query: who owns Campus Navigator
+  1. episode id=2  rrf=0.0489  lanes=fts+keyword+vector
+     user: Campus Navigator is owned by the DBMS project team.
+  2. episode id=6  rrf=0.0481  lanes=fts+keyword+vector
+     user: Ownership moved. The AI Lab now owns Campus Navigator.
+  3. fact    id=5  rrf=0.0479  lanes=fts+keyword+vector
+     Campus Navigator owned by AI Lab
+  4. episode id=1  rrf=0.0469  lanes=fts+keyword+vector
+     user: We are building Campus Navigator, a student app for SGT University.
+  5. fact    id=2  rrf=0.0464  lanes=fts+keyword+vector
+     Campus Navigator uses SQLite
+
+query: MongoDB
+  (no hit)
+
+========================================================================
+7. Consolidate
+========================================================================
+summary 1 over 5 live episodes
+Consolidated beliefs from this session: Campus Navigator uses SQLite (confidence 0.95);
+Campus Navigator created by Harshit Khemani (confidence 0.90); Campus Navigator owned by
+AI Lab (confidence 0.92).
+
+========================================================================
+8. Provenance delete is refused
+========================================================================
+DELETE episode 3 refused: FOREIGN KEY constraint failed
+
+========================================================================
+9. Checks
+========================================================================
+PASS  alias 'the app' is Campus Navigator
+PASS  exactly one active owner
+PASS  as-of 09:30 the owner is the DBMS project team
+PASS  MongoDB fact is forgotten and not a current belief
+PASS  retrieval of 'full-text search sqlite' hits a SQLite memory
+PASS  forgotten MongoDB memory is not retrieved
+PASS  supersede wrote a new fact id
+PASS  summary names the AI Lab
+PASS  PRAGMA integrity_check is ok
+
+========================================================================
+10. sqlite3 queries
+========================================================================
+
+== tables ==
+agent                episode_fts          fact_fts_config    
+belief_history       episode_fts_config   fact_fts_data      
+current_belief       episode_fts_data     fact_fts_docsize   
+embedding            episode_fts_docsize  fact_fts_idx       
+entity               episode_fts_idx      keyword            
+entity_alias         fact                 session            
+episode              fact_fts             summary            
+
+== current beliefs ==
+fact_id | subject | predicate | object | stance | confidence | valid_from
+2 | Campus Navigator | uses | SQLite | certain | 0.95 | 2026-09-30T09:15:00
+3 | Campus Navigator | created_by | Harshit Khemani | certain | 0.90 | 2026-09-30T09:20:00
+5 | Campus Navigator | owned_by | AI Lab | certain | 0.92 | 2026-09-30T09:40:00
+
+== who owned Campus Navigator at 09:30, before the hand-off ==
+subject | object | status | valid_from | valid_until
+Campus Navigator | DBMS project team | superseded | 2026-09-30T09:10:00 | 2026-09-30T09:40:00
+
+== aliases (one row per alias, unique) ==
+entity | alias
+Campus Navigator | Campus Navigator
+Campus Navigator | navigator
+Campus Navigator | the app
+DBMS project team | DBMS project team
+DBMS project team | project team
+DBMS project team | the team
+SQLite | SQLite
+SQLite | sqlite3
+MongoDB | MongoDB
+MongoDB | mongo
+AI Lab | AI Lab
+AI Lab | the lab
+Harshit Khemani | Harshit
+Harshit Khemani | Harshit Khemani
+
+== provenance: each active fact and the episode that supports it ==
+fact_id | statement | episode_id | episode
+2 | Campus Navigator uses SQLite | 3 | The app uses SQLite for persistent memory, becau
+3 | Campus Navigator created by Harshit Khemani | 4 | Harshit Khemani created the memory schema.
+5 | Campus Navigator owned by AI Lab | 6 | Ownership moved. The AI Lab now owns Campus Navi
+
+== foreign keys on fact ==
+id | seq | table | from | to | on_update | on_delete | match
+0 | 0 | fact | superseded_by | fact_id | NO ACTION | NO ACTION | NONE
+1 | 0 | episode | source_episode_id | episode_id | NO ACTION | NO ACTION | NONE
+2 | 0 | entity | object_entity_id | entity_id | NO ACTION | NO ACTION | NONE
+3 | 0 | entity | subject_entity_id | entity_id | NO ACTION | NO ACTION | NONE
+
+== integrity ==
+integrity_check
+ok
+
+all checks passed
