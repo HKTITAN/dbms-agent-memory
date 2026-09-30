@@ -54,6 +54,7 @@ python3 build_report.py
 ```
 
 The PDF is written to `DBMS-TA3-Persistent-Memory.pdf`. Printing it needs
-Google Chrome. The code figures and the terminal figures are screenshots
-already saved under `screenshots/`. The script does not redraw them.
-Running the demo does not need Chrome.
+ReportLab (`pip install -r requirements.txt`). The code figures and the
+terminal figures are screenshots already saved under `screenshots/`.
+The script redraws the diagrams from `diagrams/` and does not redraw
+the screenshots. Running the demo does not need ReportLab.
