@@ -1,2 +1,3 @@
-# The memory store, the demo, and build_report.py use only the Python
-# standard library. Nothing extra is required to run python3 demo.py.
+# The demo uses only the Python standard library.
+# ReportLab prints the group report. It is not imported by demo.py.
+reportlab>=4.0
