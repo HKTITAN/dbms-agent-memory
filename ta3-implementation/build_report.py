@@ -326,7 +326,7 @@ def _height(flowables: list, width: float) -> float:
 
 def cover(meta: dict) -> list:
     title = [
-        Paragraph("Teaching Assignment Report", S["center"]),
+        Paragraph("Thematic Assessment Report", S["center"]),
         Paragraph("Phase 3", S["center"]),
     ]
     names = [
@@ -369,7 +369,7 @@ def cover(meta: dict) -> list:
     right = [Paragraph("<b>Submitted by:</b>", S["cell"])]
     for member in meta["members"]:
         right.append(Paragraph(f"{member['name']} ({member['roll']})", S["cell"]))
-    right.append(Paragraph("B.Tech CSE (AI/ML), Section C · SGT University", S["cell"]))
+    right.append(Paragraph("B.Tech CSE (AI/ML), Section C", S["cell"]))
     submitted = Table(
         [[left, right]],
         colWidths=[CONTENT_W * 0.48, CONTENT_W * 0.52],
