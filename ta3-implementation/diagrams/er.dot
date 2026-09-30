@@ -1,0 +1,29 @@
+digraph er {
+  rankdir=TB;
+  nodesep=0.45;
+  ranksep=0.6;
+  node [shape=box];
+  agent [label="AGENT\nagent_id  PK\nname  UNIQUE"];
+  session [label="SESSION\nsession_id  PK\nagent_id  FK\ntitle"];
+  episode [label="EPISODE\nepisode_id  PK\nsession_id  FK\ncontent\nforgotten"];
+  entity [label="ENTITY\nentity_id  PK\nname_key  UNIQUE\nkind"];
+  alias [label="ENTITY_ALIAS\nalias_key  PK\nentity_id  FK"];
+  fact [label="FACT\nfact_id  PK\nsubject_entity_id  FK\npredicate\nobject_entity_id  FK\nvalid_from, valid_until\nstatus\nsource_episode_id  FK"];
+  keyword [label="KEYWORD\nkeyword_id  PK\nterm\nepisode_id or fact_id"];
+  summary [label="SUMMARY\nsummary_id  PK\nsession_id  FK\nbody"];
+  embedding [label="EMBEDDING\nembedding_id  PK\nvector  JSON\none parent FK"];
+  { rank=same; agent; entity }
+  { rank=same; session; alias; summary }
+  { rank=same; episode; fact }
+  { rank=same; keyword; embedding }
+  agent -> session [label="1:N"];
+  session -> episode [label="1:N"];
+  session -> summary [label="1:N"];
+  entity -> alias [label="1:N"];
+  entity -> fact [label="1:N"];
+  episode -> fact [label="1:N"];
+  episode -> keyword [label="1:N"];
+  fact -> keyword [label="1:N"];
+  episode -> embedding [label="1:N"];
+  fact -> embedding [label="1:N"];
+}

@@ -1,3 +1,2 @@
-# The memory store and demo use only the Python standard library.
-# Pygments is used to render syntax-highlighted code figures for the report.
-pygments>=2.18
+# The memory store, the demo, and build_report.py use only the Python
+# standard library. Nothing extra is required to run python3 demo.py.

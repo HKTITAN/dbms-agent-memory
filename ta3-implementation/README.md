@@ -1,4 +1,4 @@
-# TA-3 — Persistent memory store
+# TA-3: Persistent memory store
 
 A small relational memory store for an AI agent. It is the implementation half
 of the DBMS term paper: episodic memories, semantic facts with validity
@@ -35,22 +35,25 @@ sqlite3 memory.db ".schema"
 | `demo.py` | One scripted agent session and the checks |
 | `queries.sql` | The SQL shown at the end of the demo |
 | `members.json` | Names and roll numbers printed on the report cover |
-| `build_report.py` | Rebuilds screenshots and the group report PDF |
+| `diagrams/` | Graphviz sources for the architecture and ER figures |
+| `screenshots/` | VS Code and terminal screenshots used in the report |
+| `assets/sgt-logo.png` | University seal on the cover |
+| `build_report.py` | Runs the demo, renders the diagrams, and prints the PDF |
 
 ## Group report
 
-`members.json` is the only place names are written. The cover, the declaration,
-and the footer read that list. To add a student, append one object and rebuild:
+`members.json` is the only place names are written. The cover reads that list.
+To add a student, append one object and rebuild:
 
 ```json
 {"name": "Example Name", "roll": "241302000"}
 ```
 
 ```bash
-pip install -r requirements.txt
 python3 build_report.py
 ```
 
-The PDF is written to `DBMS-TA3-Persistent-Memory.pdf`. Building it needs
-Google Chrome (headless) to screenshot the figures and print the report.
-Running the demo does not.
+The PDF is written to `DBMS-TA3-Persistent-Memory.pdf`. Printing it needs
+Google Chrome. The code figures and the terminal figures are screenshots
+already saved under `screenshots/`. The script does not redraw them.
+Running the demo does not need Chrome.
