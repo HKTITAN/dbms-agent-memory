@@ -244,9 +244,9 @@ def render_diagrams() -> None:
     subprocess.run(
         [
             "neato",
-            "-n2",
+            "-n",
             "-Tpng",
-            "-Gdpi=140",
+            "-Gdpi=220",
             str(DIAGRAMS / "er.dot"),
             "-o",
             str(SHOTS / "er.png"),
