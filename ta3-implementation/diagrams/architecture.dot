@@ -1,0 +1,9 @@
+digraph architecture {
+  rankdir=TB;
+  node [shape=box];
+  demo [label="demo.py\nscripted agent session"];
+  store [label="memory_store.py  MemoryStore\nwrite, assert, supersede,\nforget, retrieve, consolidate"];
+  db [label="memory.db  (SQLite file)\nepisodes, entities, aliases, facts,\nkeywords, embeddings, summaries, FTS5"];
+  demo -> store;
+  store -> db;
+}
